@@ -1,0 +1,766 @@
+---
+title: 'Data cleaning 1: demographics'
+author: "Rosie Watts"
+date: "22/06/2021"
+output:
+  word_document: default
+  html_document: default
+---
+
+#Set up R Markdown
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Clear Global Environment 
+```{r clear global environment}
+rm(list = ls(all.names = TRUE)) 
+```
+
+Set current date 
+```{r current date}
+date <- Sys.Date()
+```
+
+Install necessary packages
+```{r install packages}
+#install.packages("xlsx")
+#install.packages("readxl")
+#install.packages("tidyverse")
+```
+
+Load necessary packages 
+```{r load packages}
+library(xlsx)
+library(summarytools)
+library(gt)
+library(readxl)
+library(tidyverse)
+```
+
+Read in merged dataset
+```{r read in merged data}
+arfid_dat <- readRDS(file = "../data_raw/merged_arfid_data2021-08-18.rds")
+```
+
+
+#Inspect data 
+```{r dimensions}
+arfid_dat %>% 
+  dim()
+```
+
+```{r structure}
+arfid_dat %>% 
+  str()
+```
+
+#Inspect and clean clinician demographics (diagnoses)
+
+## ARFID diagnosis 
+Data from measures tracker, journey tracker, clinician update and Qualtrics
+Qualtrics = 100% NA
+
+Journey tracker and Clinician update are more up-to-date than measures tracker! 
+```{r ARFID diagnosis}
+arfid_dat %>% 
+  select(Dx_ICD10_unc,         # Measures tracker
+         Dx_DSM5_unc,          # Measures tracker
+         FED_Diagnosis_unc,    # Journey tracker
+         ARFID_diagnosis_unc,  # Clinician updates
+         dem.cl.pre.307.59_avoidantrestrictive_food_intake_disorder_unc) %>%  # Qualtrics
+  freq()
+```
+
+Output: 
+- Qualtrics data is 100% NA
+- Recode journey and measures tracker and clinician update data and combine information to create one up-to-date variable. 
+- Journey tracker is most up to date
+
+
+Recode ARFID diagnosis from journey tracker and covert to numeric
+
+0 = not ARFID, 1 = ARFID, 2 = Subthreshold ARFID
+```{r recode ARFID dx journey tracker}
+arfid_dat <- arfid_dat %>% 
+  mutate(FED_Diagnosis_ARFID_numeric =
+  recode(FED_Diagnosis_unc, 
+         '(ARFID) subthreshold' = "2",
+         'ARFID' = "1", 
+         'ARFID sub-threshold' = "2",
+         'Attachment diffs?' = "0", 
+         'no diagnosis' = "0",
+         'No diagnosis' = "0", 
+         'no primary FED' = "0",
+         'None' = "0", 
+         'None (avoidance secondary to constipation)' = "0",
+         'None (resolving picture)' = "0", 
+         'Pica' = "0") %>% 
+    as.numeric())
+
+arfid_dat %>% 
+  freq(FED_Diagnosis_ARFID_numeric)
+```
+
+
+Recode ARFID diagnosis from clinician updates
+0 = not ARFID, 1 = ARFID, 2 = Subthreshold ARFID, 
+```{r recode ARFID dx clinician}
+arfid_dat <- arfid_dat %>% 
+  mutate(ARFID_Diagnosis_numeric =
+  recode(ARFID_diagnosis_unc, 
+         'Yes' = "1",
+         'No' = "0", 
+         'Sub-threshold' = "2") %>% 
+    as.numeric())
+
+arfid_dat %>% 
+  freq(ARFID_Diagnosis_numeric)
+```
+
+
+Recode DSM-5 diagnosis from measures tracker and covert to numeric
+0 = not ARFID, 1 = ARFID, 2 = Subthreshold ARFID
+
+Discussed the reporting of hx of ARFID with the clinician, more likely to be subthreshold than clinical dx.
+```{r recode DSM-5 ARFID dx}
+arfid_dat <- arfid_dat %>% 
+  mutate(dem.cl.pre.dsm5_fed_diagnosis_ARFID =
+  recode(Dx_DSM5_unc, 
+         '307.58999999999997' = "1",
+         'ARFID' = "1",
+         'hx 307.59' = "2",
+         'ICD 11 criteria ARFID' = "1",
+         'no diagnosis' = "0", 
+         'none' = "0",
+         'None' = "0", 
+         'pica' = "0", 
+         'subth 307.59' = "2",
+         'TBC' = NA_character_,
+         'unknown' = NA_character_) %>% 
+    as.numeric())
+         
+arfid_dat %>% 
+  freq(dem.cl.pre.dsm5_fed_diagnosis_ARFID)
+```
+
+
+Recode ICD-10 diagnosis from measures tracker and convert to numeric
+0 = not ARFID, 1 = ARFID, 2 = Subthreshold ARFID
+```{r recode ICD-10 ARFID dx}
+arfid_dat <- arfid_dat %>% 
+  mutate(dem.cl.pre.icd10_fed_diagnosis_ARFID =
+  recode(Dx_ICD10_unc, 
+         'F50.82' = "1",
+         'F80.82' = "0",  
+         'hx F50.82' = "2",
+         'no diagnosis' = "0", 
+         'none' = "0",
+         'None' = "0", 
+         'subth F50.82' = "2",
+         'unknown' = NA_character_) %>% 
+    as.numeric())
+         
+arfid_dat %>% 
+  freq(dem.cl.pre.icd10_fed_diagnosis_ARFID)
+```
+
+Manually check correspondence of the diagnosis
+SLaM clinician provided clarification on the diagnosis reporting which did not correspond. 
+Clinician clarification = ARFID_Diagnosis_numeric
+```{r check diagnosis}
+arfid_dat %>% 
+  select(
+    ARFID_ID,
+    FED_Diagnosis_ARFID_numeric, 
+    ARFID_Diagnosis_numeric,
+    dem.cl.pre.dsm5_fed_diagnosis_ARFID,
+    dem.cl.pre.icd10_fed_diagnosis_ARFID
+    )
+```
+
+ARFID Diagnosis combined: 
+
+Order these based on the most up-to-date diagnosis information
+
+1. ARFID_diagnosis_numeric - this is clinician's clarification recieved on the 27.07.21
+2. Journey tracker 
+3. Measures tracker
+
+0 = not ARFID, 1 = ARFID, 2 = Subthreshold ARFID, 
+```{r ARFID diagnosis numeric}
+arfid_dat <- arfid_dat %>%
+  mutate(
+    arfid_diagnosis_numeric_unc = 
+      case_when(
+
+        ARFID_Diagnosis_numeric == 1 |
+        FED_Diagnosis_ARFID_numeric == 1 |
+        dem.cl.pre.dsm5_fed_diagnosis_ARFID == 1 |
+        dem.cl.pre.icd10_fed_diagnosis_ARFID == 1 ~ 
+          1,
+        ARFID_Diagnosis_numeric == 2 |
+        FED_Diagnosis_ARFID_numeric == 2 |
+        dem.cl.pre.dsm5_fed_diagnosis_ARFID == 2 |
+        dem.cl.pre.icd10_fed_diagnosis_ARFID == 2 ~  
+          2,
+        ARFID_Diagnosis_numeric == 0 |
+        FED_Diagnosis_ARFID_numeric == 0 |                
+        dem.cl.pre.dsm5_fed_diagnosis_ARFID == 0 |
+        dem.cl.pre.icd10_fed_diagnosis_ARFID == 0 ~  
+          NA_real_,  # Set no diagnosis to NA to exclude (based on inclusion criteria)  
+        
+        
+      TRUE ~ as.numeric(
+        ARFID_Diagnosis_numeric |
+        dem.cl.pre.dsm5_fed_diagnosis_ARFID |
+        dem.cl.pre.icd10_fed_diagnosis_ARFID|
+        FED_Diagnosis_ARFID_numeric)
+      )
+      )
+
+arfid_dat %>% 
+  freq(arfid_diagnosis_numeric_unc)
+```
+
+Filter the ARFID ID's which the clinician's gave updated information on to check they have been correctly coded. 
+```{r filter IDs to check diagnosis}
+arfid_dat %>%
+  select(ARFID_ID, 
+         arfid_diagnosis_numeric_unc) %>% 
+  filter(ARFID_ID == "AR19010" |
+        ARFID_ID == "AR19013" |
+        ARFID_ID == "AR19019" |
+        ARFID_ID == "AR19022" |
+        ARFID_ID == "AR20002" |
+        ARFID_ID == "AR20004" |
+        ARFID_ID == "AR20006" |
+        ARFID_ID == "AR20009" |
+        ARFID_ID == "AR20014" |
+        ARFID_ID == "AR20016" |
+        ARFID_ID == "AR20017" |
+        ARFID_ID == "AR20019" |
+        ARFID_ID == "AR20030" |
+        ARFID_ID == "AR20031" |
+        ARFID_ID == "AR20032" |
+        ARFID_ID == "AR20036" |
+        ARFID_ID == "AR20056" |
+        ARFID_ID == "AR20057" |
+        ARFID_ID == "AR20058" |
+        ARFID_ID == "AR20063" |
+        ARFID_ID == "AR20064" |
+        ARFID_ID == "AR20065" |
+        ARFID_ID == "AR20073" |
+        ARFID_ID == "AR21006" |
+        ARFID_ID == "AR21007" |
+        ARFID_ID == "AR21010" |
+        ARFID_ID == "AR21011" |
+        ARFID_ID == "AR21014" |
+        ARFID_ID == "AR21019" |
+        ARFID_ID == "AR21021" |
+        ARFID_ID == "AR21023" |
+        ARFID_ID == "AR21025" |
+        ARFID_ID == "AR21027" |
+        ARFID_ID == "AR21028" |
+        ARFID_ID == "AR21029" |
+        ARFID_ID == "AR21031" |
+        ARFID_ID == "AR21032" |
+        ARFID_ID == "AR21035" |
+        ARFID_ID == "AR21040" |
+        ARFID_ID == "AR21041" |
+        ARFID_ID == "AR21042" |
+        ARFID_ID == "AR21044" |
+        ARFID_ID == "AR21046" |
+        ARFID_ID == "AR21047" |
+        ARFID_ID == "AR21048" |
+        ARFID_ID == "AR21050" |
+        ARFID_ID == "AR21051" |
+        ARFID_ID == "AR21053" |
+        ARFID_ID == "AR21056" |
+        ARFID_ID == "AR21057" |
+        ARFID_ID == "AR21058" |
+        ARFID_ID == "AR21059" |
+        ARFID_ID == "AR21060" |
+        ARFID_ID == "AR21062" |
+        ARFID_ID == "AR21063" |
+        ARFID_ID == "AR21064" |
+        ARFID_ID == "AR21065" |
+        ARFID_ID == "AR21066" |
+        ARFID_ID == "AR21067" |
+        ARFID_ID == "AR21068" |
+        ARFID_ID == "AR21069" |
+        ARFID_ID == "AR21070" |
+        ARFID_ID == "AR21071")
+```
+
+Clinician's provided updated information/clarification on patient's with no or subthreshold ARFID. 
+Four participants were documented as subthreshold, but clinician's confirmed they did not meet diagnosis or subthreshold ARFID
+
+Recode: AR21007, AR21027, AR20032 and AR20057
+Were recorded as subthreshold, but clinician's clarified that they did not receive a diagnosis of ARFID
+Recode to NA (no diagnosis based on inclusion criteria)
+```{r clean ARFID diagnosis}
+arfid_dat <- arfid_dat %>%
+  mutate(
+    arfid_diagnosis_numeric = 
+      if_else(
+        ARFID_ID == "AR20032" |
+        ARFID_ID == "AR20057" |
+        ARFID_ID == "AR21007" | 
+        ARFID_ID == "AR21027", 
+        true = NA_real_, 
+        false = arfid_diagnosis_numeric_unc, 
+        missing = NA_real_
+        )
+    )
+```
+
+
+Check this worked
+```{r filter and check this worked}
+arfid_dat %>% 
+  select(ARFID_ID, 
+         arfid_diagnosis_numeric, 
+         arfid_diagnosis_numeric_unc) %>% 
+  filter(
+    ARFID_ID == "AR19005" | 
+    ARFID_ID == "AR19001" |
+    ARFID_ID == "AR20032" |
+    ARFID_ID == "AR20057" |
+    ARFID_ID == "AR20009" | 
+    ARFID_ID == "AR21027" |
+    ARFID_ID == "AR21007"
+    )
+```
+It did!
+
+```{r frequency of ARFID diagnosis}
+arfid_dat %>% 
+  freq(arfid_diagnosis_numeric)
+```
+
+Drop NAs
+Remove participants who were not diagnosed with ARFID or sub-threshold ARFID 
+Inclusion criteria
+```{r drop NAs}
+dim(arfid_dat)
+
+#Drop NA's in ARFID diagnosis (inclusion criteria)
+
+arfid_dat_ex <- arfid_dat %>%
+  drop_na(arfid_diagnosis_numeric)
+
+nrow(arfid_dat_ex)-nrow(arfid_dat)
+
+#Check dimensions and factor
+
+dim(arfid_dat_ex)
+
+arfid_dat_ex %>%
+  freq(arfid_diagnosis_numeric)
+
+#Save this 
+
+arfid_dat <- arfid_dat_ex
+```
+
+The total sample size is 139 children and young persons with ARFID or sub-threshold presentation of the disorder.
++++CH: Example sentence to document your chunks
+
+```{r ARFID diagnosis factor}
+arfid_dat <- arfid_dat %>% 
+  mutate(arfid_diagnosis = 
+           recode_factor(arfid_diagnosis_numeric, 
+                         '1' = "ARFID diagnosis", 
+                         '2' = "Subthreshold ARFID"
+                         )
+         )
+
+arfid_dat %>% 
+  freq(arfid_diagnosis)
+```
+
+
+Filter non-corresponding ARFID IDs, patients with missing data, patients with no ARFID dx, and patients with subthreshold and write as excel. Check these diagnoses with the clinical team at SLaM and edit the above chunks with the clinicians feedback. 
+
+*** Chunks above were edited on the 27th July 2021 and patients ARFID diagnoses were recoding following clinician feedback ***
+
+```{r filter and write excel - ARFID}
+arfid_dx <- arfid_dat %>% 
+  select(ARFID_ID, 
+         arfid_diagnosis) %>% 
+  filter(is.na(arfid_diagnosis) |
+           arfid_diagnosis == "No ARFID diagnosis" | 
+           arfid_diagnosis == "Subthreshold ARFID")
+
+write.xlsx(
+  arfid_dx,
+  file = paste0("ARFID_IDs_no_dx", date,".xlsx"),
+  sheetName = "Sheet1",
+  col.names = TRUE,
+  row.names = TRUE,
+  append = FALSE,
+  showNA = TRUE,
+  password = NULL
+)
+```
+
+
+##ASD diagnosis: 
+
+```{r inspect ASD data}
+arfid_dat %>% 
+  select(ASD_Diagnosis_unc,                                           #journey tracker
+         currentview.cl.pre.5_pervasive_developmental_disorders_unc)  #current view
+```
+
+
+Recode from character to numeric
+0 = no ASD, 1 = suspected ASD, 2 = ASD
+```{r recode ASD dx journey tracker}
+arfid_dat %>% 
+  freq(ASD_Diagnosis_unc)
+
+arfid_dat <- arfid_dat %>% 
+  mutate(dem.cl.pre.ASD_diagnosis_numeric =
+  recode(ASD_Diagnosis_unc, 
+         'yes' = "2",
+         'Yes' = "2",
+         'Yes - not at time of Ax but during Tx got diagnosis' = "2",
+         'suspected' = "1",
+         'Suspected' = "1",
+         'No' = "0",
+         'no' = "0",
+         'suspected (although not discussed yet with family)' = "1",
+         'suspected (has been referred for assessment)' = "1",
+         'Unknown' = NA_character_,
+         'Not known' = NA_character_
+         ) %>% 
+    as.numeric())
+         
+arfid_dat %>% 
+  freq(dem.cl.pre.ASD_diagnosis_numeric)
+```
+
+Current View 
+Complexity Factor 5: pervasive developmental disorder (Aspergers or ASD) 
+0 = no ASD, 1 = suspected ASD, 2 = ASD
+```{r recode Current View PDD}
+arfid_dat %>% 
+  freq(currentview.cl.pre.5_pervasive_developmental_disorders_unc)
+
+arfid_dat <- arfid_dat %>%
+  mutate(currentview.cl.pre.5_pervasive_developmental_disorders_numeric = 
+           recode(currentview.cl.pre.5_pervasive_developmental_disorders_unc, 
+                  '0' = "0", 
+                  '1' = "2", 
+                  'suspected' = "1") %>% 
+           as.numeric())
+
+arfid_dat %>% 
+  freq(currentview.cl.pre.5_pervasive_developmental_disorders_numeric)
+```
+
+
+Check whether ASD diagnoses correspond across the different measures
+```{r manually check ASD dx}
+arfid_dat %>% 
+  select(
+    ARFID_ID,
+    dem.cl.pre.ASD_diagnosis_numeric, 
+    currentview.cl.pre.5_pervasive_developmental_disorders_numeric
+    )
+```
+
+
+Filter ARFID ID's of patients whose ASD diagnosis doesn't correspond across the two groups and write to excel. 
+Check with ARFID specialist team at SLaM
+```{r filter and write excel - ASD}
+asd_dx <- arfid_dat %>% 
+  select(ARFID_ID,
+         dem.cl.pre.ASD_diagnosis_numeric, 
+         currentview.cl.pre.5_pervasive_developmental_disorders_numeric) %>% 
+  filter(ARFID_ID == "AR20035" | 
+           ARFID_ID == "AR19011" | 
+           ARFID_ID == "AR20014" | 
+           ARFID_ID == "AR20047" | 
+           ARFID_ID == "AR20051" | 
+           ARFID_ID == "AR20053")
+
+
+write.xlsx(
+  asd_dx,
+  file = paste0("ARFID_IDs_no_asd", date,".xlsx"),
+  sheetName = "Sheet2",
+  col.names = TRUE,
+  row.names = TRUE,
+  append = FALSE,
+  showNA = TRUE,
+  password = NULL
+)
+```
+
+ASD dx, including ASD, suspected ASD and no ASD 
+Combine information to create one up-to-date variable
+0 = no ASD, 1 = ASD suspected, 2 = ASD,
+```{r ASD diagnosis numeric}
+arfid_dat <- arfid_dat %>%
+  mutate(ASD_diagnosis_numeric_unc = case_when(
+    dem.cl.pre.ASD_diagnosis_numeric == 2 |
+        currentview.cl.pre.5_pervasive_developmental_disorders_numeric == 2 ~ 
+          2,
+    dem.cl.pre.ASD_diagnosis_numeric == 1 |
+      currentview.cl.pre.5_pervasive_developmental_disorders_numeric == 1 ~ 
+      1,
+    dem.cl.pre.ASD_diagnosis_numeric == 0 |
+      currentview.cl.pre.5_pervasive_developmental_disorders_numeric == 0 ~ 
+      0, 
+    TRUE ~ as.numeric(
+      dem.cl.pre.ASD_diagnosis_numeric |
+        currentview.cl.pre.5_pervasive_developmental_disorders_numeric)))
+                
+
+arfid_dat %>% 
+  freq(ASD_diagnosis_numeric_unc)
+```
+
+27.07.21: Clinicians provided clarification on patient's comorbid ASD diagnosis for all patients who's diagnoses did not correspond. There were several diagnoses that needed recoding:
+
+Need to recode: 
+AR19011 to suspected, 
+AR20014 to suspected,
+AR20035 to suspected,
+AR20047 to suspected, 
+AR20051 to no dx, 
+AR20053 to suspected dx
+
+```{r clean ASD dx}
+#Recode to suspected ASD
+arfid_dat <- arfid_dat %>%
+  mutate(ASD_diagnosis_numeric.1 = 
+           if_else(
+             ARFID_ID == "AR19011" | 
+             ARFID_ID == "AR20014" | 
+             ARFID_ID == "AR20035" | 
+             ARFID_ID == "AR20047" |
+             ARFID_ID == "AR20053", 
+            true = 1, # suspected ASD
+            false = ASD_diagnosis_numeric_unc, 
+            missing = NA_real_
+            )
+         )
+
+#Recode to no ASD
+arfid_dat <- arfid_dat %>%
+  mutate(ASD_diagnosis_numeric = 
+           if_else(
+             ARFID_ID == "AR20051", 
+             true = 0, # No ASD
+             false = ASD_diagnosis_numeric.1, 
+             missing = NA_real_
+             )
+         )
+```
+
+Check this worked
+```{r}
+arfid_dat %>% 
+  select(ARFID_ID, 
+         ASD_diagnosis_numeric, 
+         ASD_diagnosis_numeric_unc) %>% 
+  filter(ARFID_ID == "AR19011" | 
+         ARFID_ID == "AR20014" | 
+         ARFID_ID == "AR20035" | 
+         ARFID_ID == "AR20047" |
+         ARFID_ID == "AR20053" |
+         ARFID_ID == "AR20051")
+```
+It did
+
+Check frequency of numeric ASD variable
+```{r ASD freq}
+arfid_dat %>% 
+  freq(ASD_diagnosis_numeric)
+```
+
+ASD factor
+```{r ASD dx as factor}
+arfid_dat <- arfid_dat %>% 
+  mutate(ASD_diagnosis = 
+           recode_factor(ASD_diagnosis_numeric, 
+                         '0' = "No ASD diagnosis", 
+                         '1' = "Suspected ASD", 
+                         '2' = "ASD diagnosis"))
+
+arfid_dat %>% 
+  freq(ASD_diagnosis)
+```
+68 patients had no ASD diagnosis, 30 patients had a comorbid ASD diagnosis, and 24 patients had suspected ASD. 
+
+
+#Inspect and clean patient demographics
+
+##Child Information (reported by parents)
+
+Rename to match with ARFID data dictionary
+```{r rename patient sex variable}
+arfid_dat <- arfid_dat %>% 
+  mutate(child.parent.pre.biological_sex_of_your_child_at_birth_binary_numeric = 
+           recode_sex)
+```
+
+Create a factor 
+0 = male, 
+1 = female
+```{r child sex as factor}
+arfid_dat %>% 
+  freq(child.parent.pre.biological_sex_of_your_child_at_birth_binary_numeric)
+
+arfid_dat <- arfid_dat %>% 
+  mutate(child.parent.pre.biological_sex_of_your_child_at_birth_binary = 
+           recode_factor(child.parent.pre.biological_sex_of_your_child_at_birth_binary_numeric,
+                         `0` = "Male",
+                         `1` = "Female"))
+
+arfid_dat %>% 
+  freq(child.parent.pre.biological_sex_of_your_child_at_birth_binary)
+```
+72 female and 63 male patients. 4 patients were NA. 
+
+Age: 
+```{r inspect age}
+arfid_dat %>% 
+ freq(child.parent.pre.age_yrs_dec_unc)
+```
+
+
+Should I remove patients under the age of 4 years? 
+```{r check under age 4 data}
+arfid_dat %>% 
+  filter(child.parent.pre.age_yrs_dec_unc < 4)
+```
+
+Only 1 patient under the age of 4 who doesn't have any PARDI data. 
+Remove from demographics
+```{r remove outliers}
+
+arfid_dat <- arfid_dat %>%
+    mutate(child.parent.pre.age_yrs =
+        if_else(
+          child.parent.pre.age_yrs_dec_unc > 18 |
+            child.parent.pre.age_yrs_dec_unc < 4,
+          true = NA_real_,
+          false = child.parent.pre.age_yrs_dec_unc,
+          missing = NA_real_ ))
+
+arfid_dat %>% 
+  descr(child.parent.pre.age_yrs)
+```
+Mean age is 12.5 years
+
+
+Recode age group:
+```{r recode age group}
+
+arfid_dat %>% 
+  freq(age.parent.pre.please_choose_young_persons_age_group_unc) 
+
+#Needs recoding from 8 - 4 to 0 - 4
+
+arfid_dat <- arfid_dat %>% 
+  mutate(age.parent.pre.please_choose_young_persons_age_group_numeric = 
+           recode(age.parent.pre.please_choose_young_persons_age_group_unc, 
+                  '8' = "0", 
+                  '7' = "1", 
+                  '6' = "2", 
+                  '5' = "3", 
+                  '4' = "4") %>% 
+           as.numeric())
+
+arfid_dat %>% 
+  freq(age.parent.pre.please_choose_young_persons_age_group_numeric) 
+```
+
+Missing data  (72 NA's)
+Use age in years to increase age group data
+```{r age group}
+arfid_dat <- arfid_dat %>% 
+  mutate(age.parent.pre.please_choose_young_persons_age_group_numeric = 
+           case_when(
+             age.parent.pre.please_choose_young_persons_age_group_numeric == 0 |
+               child.parent.pre.age_yrs > 2 & 
+               child.parent.pre.age_yrs < 4 ~ 0,
+             age.parent.pre.please_choose_young_persons_age_group_numeric == 1 |
+               child.parent.pre.age_yrs > 3 & 
+               child.parent.pre.age_yrs < 8 ~ 1, 
+             age.parent.pre.please_choose_young_persons_age_group_numeric == 2 |
+               child.parent.pre.age_yrs > 7 & 
+               child.parent.pre.age_yrs < 11 ~ 2, 
+             age.parent.pre.please_choose_young_persons_age_group_numeric == 3 |
+               child.parent.pre.age_yrs > 10 & 
+               child.parent.pre.age_yrs < 13 ~ 3, 
+             age.parent.pre.please_choose_young_persons_age_group_numeric == 4 |
+               child.parent.pre.age_yrs > 12 &
+               child.parent.pre.age_yrs < 18 ~ 4, 
+             TRUE ~ as.numeric(
+               age.parent.pre.please_choose_young_persons_age_group_numeric |
+                 child.parent.pre.age_yrs)
+           )
+  )
+```
+
+Check this worked
+```{r inspect age - years & group}
+arfid_dat %>% 
+  select(
+    child.parent.pre.age_yrs,
+    age.parent.pre.please_choose_young_persons_age_group_numeric
+    )
+```
+
+```{r age group frequency}
+arfid_dat %>% 
+  freq(age.parent.pre.please_choose_young_persons_age_group_numeric)
+```
+It did - now only 6 NA's in patient's age group.
+
+
+Create factor - recode_factor to corresponding age groups
+```{r age group factor}
+arfid_dat <- arfid_dat %>%
+  mutate(age.parent.pre.please_choose_young_persons_age_group = 
+           recode_factor(age.parent.pre.please_choose_young_persons_age_group_numeric,
+    `0` = "2-3 years",
+    `1` = "4-7 years", 
+    `2` = "8-10 years", 
+    `3` = "11-12 years", 
+    `4` = "13-17 years", 
+    missing = NA_character_)
+    )
+
+arfid_dat %>% 
+  freq(age.parent.pre.please_choose_young_persons_age_group) 
+```
+
+
+## Save cleaned data
+
+Check column names
+```{r column names}
+arfid_dat %>% 
+  colnames()
+```
+
+
+Save merged dataset with cleaned clinician and patient demographics: 
+ARFID and ASD diagnosis 
+Patient sex and age
+
+```{r save data as rds}
+saveRDS(
+  object = arfid_dat,
+  file = paste0("../data/ARFID_data_dem_cleaned", date, ".rds")
+  )
+```
+
