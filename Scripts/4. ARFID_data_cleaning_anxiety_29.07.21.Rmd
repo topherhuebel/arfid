@@ -1,0 +1,2331 @@
+---
+title: "Data cleaning: anxiety measures"
+author: "Rosie Watts"
+date: "30/07/2021"
+output: html_document
+---
+
+
+#Set up R Markdown
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Clear Global Environment 
+```{r clear global environment}
+rm(list = ls(all.names = TRUE)) 
+```
+
+Set current date 
+```{r current date}
+date <- Sys.Date()
+```
+
++++CH: please in all scripts delete the packages that you are not using
+
+Install necessary packages
+```{r install packages}
+#install.packages("knitr")
+#install.packages("summarytools")
+#install.packages("skimr")
+#install.packages("psych")
+#install.packages("gt")
+#install.packages("xlsx")
+#install.packages("readxl")
+#install.packages("dplyr")
+#install.packages("tidyverse")
+#install.packages("foreach")
+```
+
+Load necessary packages 
+```{r load packages}
+library(summarytools)
+library(gtsummary)
+library(cowplot)
+library(psych)
+library(readxl)
+library(foreach)
+library(tidyverse)
+```
+
+sumscore function 
++++CH: You can source this as a file with source()
+```{r}
+sumscores <- function(input, name, na_limit=0, min_score, max_score){
+  
+  
+  # imports tidyverse inside the function
+  require(tidyverse)
+  
+  # remove non-answer items
+  input[input == -66] <- NA
+  input[input == -77] <- NA
+  input[input == -88] <- NA
+  
+  # count NAs per row
+  input$na_count <- apply(input, 1, function(x) sum(is.na(x)))
+  
+  # convert NAs to 0 above threshold
+  
+  
+  # loop through rows of input
+  for(i in 1:nrow(input)) {
+    
+    # compare na_limit to na_count in row
+    if (input[i, 'na_count'] <= na_limit){
+      
+      # if above limit, convert NA to 0
+      input[i,] <- replace(input[i,], is.na(input[i,]), 0)
+    }
+  }
+  
+  # select only questionnaire items
+  input <- input %>% select(starts_with(name))
+  
+  # calculate scores
+  scores <- apply(input, 1, sum)
+  
+  # correct scores
+  scores[scores > max_score] <- -66
+  scores[scores < min_score] <- -66
+  scores[is.na(scores)] <- -66
+  
+  # return output
+  return(scores)
+}
+```
+
+Read in merged dataset
+```{r read in merged data}
+arfid_data <- readRDS(file = "../data/ARFID_data_dem_PARDI_cleaned2021-08-18.rds")
+```
+
+```{r}
+arfid_data %>% 
+  colnames()
+```
+
+
+#RCADS Data Cleaning 
+
+## RCADS scale
+Minimum score on each RCADS item is 0 and maximum score in 3. 
+
+Set minimum and maximum of the scale:
+```{r min and max of RCADS scale}
+rcads.min.scale = 0
+rcads.max.scale = 3 
+```
+
+Create a vector selecting the RCADS variables: 
+```{r RCADS vector}
+rcads_parent_pre_numeric <- c(
+  "rcads.parent.pre.1._my_child_worries_about_things_numeric_unc", 
+  "rcads.parent.pre.stomach_problem_child_funny_numeric_unc",              
+  "rcads.parent.pre.poorly_child_worries_numeric_unc",                      
+  "rcads.parent.pre.child_feels_afraid_home_numeric_unc",                   
+  "rcads.parent.pre.child_feels_scared_taking_numeric_unc",                 
+  "rcads.parent.pre.angry_child_worries_numeric_unc",                       
+  "rcads.parent.pre.child_worries_numeric_unc",                             
+  "rcads.parent.pre.badly_school_work_child_numeric_unc",                   
+  "rcads.parent.pre.awful_happen_family_child_numeric_unc",                 
+  "rcads.parent.pre.child_suddenly_feels_breathe_numeric_unc",              
+  "rcads.parent.pre.child_feels_scared_sleep_numeric_unc",                  
+  "rcads.parent.pre.mornings_afraid_trouble_school_numeric_unc",            
+  "rcads.parent.pre.20._my_child_worries_about_looking_foolish_numeric_unc",
+  "rcads.parent.pre.bad_things_happen_child_numeric_unc",                   
+  "rcads.parent.pre.heart_beats_problem_child_numeric_unc",                 
+  "rcads.parent.pre.child_suddenly_starts_shake_numeric_unc",               
+  "rcads.parent.pre.happen_bad_child_worries_numeric_unc",                  
+  "rcads.parent.pre.problem_child_feel_shaky_numeric_unc",                  
+  "rcads.parent.pre.30._my_child_worries_about_making_mistakes_numeric_unc",
+  "rcads.parent.pre.child_worries_people_numeric_unc",                      
+  "rcads.parent.pre.afraid_child_crowded_places_numeric_unc",               
+  "rcads.parent.pre.scared_sudden_reason_feel_numeric_unc",                 
+  "rcads.parent.pre.happen_child_worries_numeric_unc",                      
+  "rcads.parent.pre.child_suddenly_dizzy_faint_numeric_unc",                
+  "rcads.parent.pre.37._my_child_thinks_about_death_numeric_unc",           
+  "rcads.parent.pre.talk_child_feels_afraid_numeric_unc",                   
+  "rcads.parent.pre.heart_suddenly_starts_beat_numeric_unc",                
+  "rcads.parent.pre.scared_feeling_suddenly_afraid_numeric_unc",            
+  "rcads.parent.pre.fool_child_feels_afraid_numeric_unc", 
+  "rcads.parent.pre.bed_child_worries_night_numeric_unc",                   
+  "rcads.parent.pre.feel_scared_stay_child_numeric_unc")
+```
+
+Use the RCADS min and max scale to ensure there are no implausible values
+```{r clean RCADS scale}
+arfid_data <- arfid_data %>%
+     mutate(
+     across(all_of(rcads_parent_pre_numeric),
+            .fns = list(clean = ~case_when(
+              . == -77 | . == -88 | . == -99 ~ .,
+              . < rcads.min.scale | . > rcads.max.scale ~ NA_real_, 
+              TRUE ~ .)))) %>%
+   rename_at(
+     vars(contains( "_unc_clean")),
+     list(~paste0(gsub("_unc_clean", "", .))))
+```
+
+
+Vector of numeric clean RCADS variables
+```{r RCADS clean numeric variables vector}
+RCADS_clean_variables_numeric <-
+  c(
+    "rcads.parent.pre.1._my_child_worries_about_things_numeric", 
+  "rcads.parent.pre.stomach_problem_child_funny_numeric",              
+  "rcads.parent.pre.poorly_child_worries_numeric",                      
+  "rcads.parent.pre.child_feels_afraid_home_numeric",                   
+  "rcads.parent.pre.child_feels_scared_taking_numeric",                 
+  "rcads.parent.pre.angry_child_worries_numeric",                       
+  "rcads.parent.pre.child_worries_numeric",                             
+  "rcads.parent.pre.badly_school_work_child_numeric",                   
+  "rcads.parent.pre.awful_happen_family_child_numeric",                 
+  "rcads.parent.pre.child_suddenly_feels_breathe_numeric",              
+  "rcads.parent.pre.child_feels_scared_sleep_numeric",                  
+  "rcads.parent.pre.mornings_afraid_trouble_school_numeric",            
+  "rcads.parent.pre.20._my_child_worries_about_looking_foolish_numeric",
+  "rcads.parent.pre.bad_things_happen_child_numeric",                   
+  "rcads.parent.pre.heart_beats_problem_child_numeric",                 
+  "rcads.parent.pre.child_suddenly_starts_shake_numeric",               
+  "rcads.parent.pre.happen_bad_child_worries_numeric",                  
+  "rcads.parent.pre.problem_child_feel_shaky_numeric",                  
+  "rcads.parent.pre.30._my_child_worries_about_making_mistakes_numeric",
+  "rcads.parent.pre.child_worries_people_numeric",                      
+  "rcads.parent.pre.afraid_child_crowded_places_numeric",               
+  "rcads.parent.pre.scared_sudden_reason_feel_numeric",                 
+  "rcads.parent.pre.happen_child_worries_numeric",                      
+  "rcads.parent.pre.child_suddenly_dizzy_faint_numeric",                
+  "rcads.parent.pre.37._my_child_thinks_about_death_numeric",           
+  "rcads.parent.pre.talk_child_feels_afraid_numeric",                   
+  "rcads.parent.pre.heart_suddenly_starts_beat_numeric",                
+  "rcads.parent.pre.scared_feeling_suddenly_afraid_numeric",            
+  "rcads.parent.pre.fool_child_feels_afraid_numeric", 
+  "rcads.parent.pre.bed_child_worries_night_numeric",                   
+  "rcads.parent.pre.feel_scared_stay_child_numeric"
+  )
+```
+
+## Check for implausible values in cleaned variables
+```{r Check for implausible values in cleaned variables}
+dat_imp_n <- arfid_data %>% 
+  select(all_of(RCADS_clean_variables_numeric)) %>% 
+  filter(. == -66) %>% 
+  nrow()
+# If statement
+if (dat_imp_n == 0) {
+  print(paste0("The number of implausible values in the RCADS variables is ", dat_imp_n, ". Can leave these variables as they are."))
+} else {
+  print(paste0("The number of implausible values in the RCADS variables is ", dat_imp_n, ". Please investigate."))
+}
+```
+
+
+## Anxiety Disorder Subscales
+
+Add up each social phobia item score to create an overall social phobia score for each patient
+
+Vector with RCADS variables
+```{r rcads vector with variables}
+rcads.social.phobia <- arfid_data %>% 
+  select(
+  rcads.parent.pre.poorly_child_worries_numeric,
+  rcads.parent.pre.child_feels_scared_taking_numeric,
+  rcads.parent.pre.angry_child_worries_numeric,
+  rcads.parent.pre.badly_school_work_child_numeric,
+  rcads.parent.pre.20._my_child_worries_about_looking_foolish_numeric,
+  rcads.parent.pre.30._my_child_worries_about_making_mistakes_numeric,
+  rcads.parent.pre.child_worries_people_numeric,    
+  rcads.parent.pre.talk_child_feels_afraid_numeric,   
+  rcads.parent.pre.fool_child_feels_afraid_numeric
+  )
+```
+
+```{r key}
+social_phobia_key <- c(1, 
+                       1, 
+                       1, 
+                       1, 
+                       1, 
+                       1, 
+                       1, 
+                       1, 
+                       1
+                       )
+```
+
+Use Zain's function: sumscores to create variable for RCADS social phobia subscale
+```{r social phobia Zain's function}
+arfid_data$rcads.social_phobia_function_numeric <- NA
+
+arfid_data <- arfid_data %>% 
+  mutate(rcads.social_phobia_function_numeric = 
+           sumscores(rcads.social.phobia,
+                     name = "rcads", 
+                     na_limit = 0, 
+                     min_score = 0, 
+                     max_score = 26
+                     )
+         )
+```
+
+Use rowSums to be able to compare output
+```{r rowSums social phobia}
+arfid_data$rcads.social_phobia_numeric <- NA
+
+arfid_data$rcads.social_phobia_numeric <- 
+  rowSums(arfid_data[c(
+     "rcads.parent.pre.poorly_child_worries_numeric", 
+     "rcads.parent.pre.child_feels_scared_taking_numeric", 
+     "rcads.parent.pre.angry_child_worries_numeric", 
+     "rcads.parent.pre.badly_school_work_child_numeric",
+     "rcads.parent.pre.20._my_child_worries_about_looking_foolish_numeric", 
+     "rcads.parent.pre.30._my_child_worries_about_making_mistakes_numeric", 
+     "rcads.parent.pre.child_worries_people_numeric", 
+     "rcads.parent.pre.talk_child_feels_afraid_numeric", 
+     "rcads.parent.pre.fool_child_feels_afraid_numeric")])
+  
+arfid_data %>% 
+  descr(rcads.social_phobia_numeric)
+```
+
+Check Zain's function (sumscores) against rowSums
+```{r check output}
+arfid_data %>% 
+  select(rcads.social_phobia_numeric, 
+         rcads.social_phobia_function_numeric)
+```
+
+All sum scores are the same across both columns. 
+NA = -66 in Zain's function!
++++CH: That's looking great. Thank you for testing this for us!
+
+
+Add up each panic disorder item score to create an overall panic disorder score for each patient
+```{r rowSums panic disorder}
+arfid_data$rcads.panic_disorder_numeric <- NA
+
+arfid_data$rcads.panic_disorder_numeric <- 
+  rowSums(arfid_data[c(
+     "rcads.parent.pre.stomach_problem_child_funny_numeric", 
+     "rcads.parent.pre.child_suddenly_feels_breathe_numeric", 
+     "rcads.parent.pre.heart_beats_problem_child_numeric", 
+     "rcads.parent.pre.child_suddenly_starts_shake_numeric", 
+     "rcads.parent.pre.problem_child_feel_shaky_numeric", 
+     "rcads.parent.pre.scared_sudden_reason_feel_numeric", 
+     "rcads.parent.pre.child_suddenly_dizzy_faint_numeric",
+     "rcads.parent.pre.heart_suddenly_starts_beat_numeric", 
+     "rcads.parent.pre.scared_feeling_suddenly_afraid_numeric")]) 
+
+arfid_data %>% 
+  descr(rcads.panic_disorder_numeric)
+```
+
+
+Add up each generalised anxiety item score to create an overall generalised anxiety score for each patient
+```{r rowSums generalised anxiety}
+arfid_data$rcads.generalised_anxiety_numeric <- NA
+
+arfid_data$rcads.generalised_anxiety_numeric <- 
+  rowSums(arfid_data[c(
+     "rcads.parent.pre.1._my_child_worries_about_things_numeric",
+     "rcads.parent.pre.awful_happen_family_child_numeric", 
+     "rcads.parent.pre.bad_things_happen_child_numeric", 
+     "rcads.parent.pre.happen_bad_child_worries_numeric", 
+     "rcads.parent.pre.happen_child_worries_numeric", 
+     "rcads.parent.pre.37._my_child_thinks_about_death_numeric")])
+
+arfid_data %>% 
+  descr(rcads.generalised_anxiety_numeric)
+```
+
+Add up each separation anxiety item score to create an overall separation anxiety score for each patient
+```{r rowSums separation anxiety}
+arfid_data$rcads.separation_anxiety_numeric <- NA
+
+arfid_data$rcads.separation_anxiety_numeric <- 
+  rowSums(arfid_data[c(
+     "rcads.parent.pre.child_feels_afraid_home_numeric",
+     "rcads.parent.pre.child_worries_numeric",
+     "rcads.parent.pre.child_feels_scared_sleep_numeric", 
+     "rcads.parent.pre.mornings_afraid_trouble_school_numeric", 
+     "rcads.parent.pre.afraid_child_crowded_places_numeric", 
+     "rcads.parent.pre.bed_child_worries_night_numeric", 
+     "rcads.parent.pre.feel_scared_stay_child_numeric")])
+    
+arfid_data %>% 
+  descr(rcads.separation_anxiety_numeric)
+```
+
+Check RCADS subscales: 
+```{r RCADS subscales head}
+arfid_data %>%
+  select(c("rcads.social_phobia_numeric", 
+           "rcads.panic_disorder_numeric", 
+           "rcads.generalised_anxiety_numeric", 
+           "rcads.separation_anxiety_numeric")) %>%
+  head(n = 10)
+```
+
+
+
+#Read in RCADS t-score tables
+RCADS is an American measure and Patient's scores are often reported as t-scores based on the US population
+https://www.childfirst.ucla.edu/wp-content/uploads/sites/163/2018/03/RCADSUsersGuide20150701.pdf
+There is no function in R to convert raw score to t-scores. 
+Read in the conversion table and create function to convert raw score to t-score
+
+
+
+Read in the reference data (conversion tables) from excel
+```{r rcads Male 3-4 }
+rcads_anxiety_Male_3_4 <- read_xlsx(
+  path = "../data_raw/rcads_anxiety_boys_3_4.xlsx",
+  trim_ws = TRUE,
+  skip = 0,
+  guess_max = 1000)
+
+rcads_anxiety_Male_3_4
+```
+
+```{r Male 5 - 6}
+rcads_anxiety_Male_5_6 <- read_xlsx(
+  path = "../data_raw/rcads_anxiety_boys_5_6.xlsx",
+  trim_ws = TRUE,
+  skip = 0,
+  guess_max = 1000)
+
+rcads_anxiety_Male_5_6
+```
+
+```{r Male 7 - 8}
+rcads_anxiety_Male_7_8 <- read_xlsx(
+  path = "../data_raw/rcads_anxiety_boys_7_8.xlsx",
+  trim_ws = TRUE,
+  skip = 0,
+  guess_max = 1000)
+
+str(rcads_anxiety_Male_7_8)
+```
+
+```{r Male 9 - 10}
+rcads_anxiety_Male_9_10 <- read_xlsx(
+  path = "../data_raw/rcads_anxiety_boys_9_10.xlsx",
+  trim_ws = TRUE,
+  skip = 0,
+  guess_max = 1000)
+
+str(rcads_anxiety_Male_9_10)
+```
+
+```{r Male 11 - 12}
+rcads_anxiety_Male_11_12 <- read_xlsx(
+  path = "../data_raw/rcads_anxiety_boys_11_12.xlsx",
+  trim_ws = TRUE,
+  skip = 0,
+  guess_max = 1000)
+
+str(rcads_anxiety_Male_11_12)
+```
+
+```{r Female 3 - 4}
+rcads_anxiety_Female_3_4 <- read_xlsx(
+  path = "../data_raw/rcads_anxiety_girls_3_4.xlsx",
+  trim_ws = TRUE,
+  skip = 0,
+  guess_max = 1000)
+
+str(rcads_anxiety_Female_3_4)
+```
+
+```{r Female 5 - 6}
+rcads_anxiety_Female_5_6 <- read_xlsx(
+  path = "../data_raw/rcads_anxiety_girls_5_6.xlsx",
+  trim_ws = TRUE,
+  skip = 0,
+  guess_max = 1000)
+
+str(rcads_anxiety_Female_5_6)
+```
+
+```{r Female 7 - 8}
+rcads_anxiety_Female_7_8 <- read_xlsx(
+  path = "../data_raw/rcads_anxiety_girls_7_8.xlsx",
+  trim_ws = TRUE,
+  skip = 0,
+  guess_max = 1000)
+
+str(rcads_anxiety_Female_7_8)
+```
+
+```{r Female 9 - 10}
+rcads_anxiety_Female_9_10 <- read_xlsx(
+  path = "../data_raw/rcads_anxiety_girls_9_10.xlsx",
+  trim_ws = TRUE,
+  skip = 0,
+  guess_max = 1000)
+
+str(rcads_anxiety_Female_9_10)
+```
+
+```{r Female 11 -12}
+rcads_anxiety_Female_11_12 <- read_xlsx(
+  path = "../data_raw/rcads_anxiety_girls_11_12.xlsx",
+  trim_ws = TRUE,
+  skip = 0,
+  guess_max = 1000)
+
+str(rcads_anxiety_Female_11_12)
+```
+
+
+## School grade
+Create a variable with patient's school grade (US system) to know which reference group to compare patients to
+https://www.acs-schools.com/egham/admissions/acs-egham-grade-placement
+
+age(yrs)    US school grade
+
+8 - 9	  	  3rd Grade
+9 - 10		  4th Grade
+10 - 11		  5th Grade
+11 - 12		  6th Grade	
+12 - 13	    7th Grade
+13 - 14		  8th Grade
+14 - 15		  9th Grade 
+15 - 16	    10th Grade 
+16 - 17	 	  11th Grade 
+17 - 18     12th Grade 
+
+```{r school grade variable}
+arfid_data <- arfid_data %>% 
+  mutate(school_grade = 
+           case_when(
+             child.parent.pre.age_yrs < 8 ~ NA_real_,
+         child.parent.pre.age_yrs > 8 & 
+           child.parent.pre.age_yrs < 9.75 ~ 3, 
+         child.parent.pre.age_yrs > 9.74 & 
+           child.parent.pre.age_yrs < 10.75 ~ 4, 
+         child.parent.pre.age_yrs > 10.74 & 
+           child.parent.pre.age_yrs < 11.75 ~ 5, 
+         child.parent.pre.age_yrs > 11.74 & 
+           child.parent.pre.age_yrs < 12.75 ~ 6, 
+         child.parent.pre.age_yrs > 12.74 & 
+           child.parent.pre.age_yrs < 13.75 ~ 7, 
+         child.parent.pre.age_yrs > 13.74 & 
+           child.parent.pre.age_yrs < 14.75 ~ 8, 
+         child.parent.pre.age_yrs > 14.74 & 
+           child.parent.pre.age_yrs < 15.75 ~ 9, 
+         child.parent.pre.age_yrs > 15.74 & 
+           child.parent.pre.age_yrs < 16.75 ~ 10, 
+         child.parent.pre.age_yrs > 16.74 & 
+           child.parent.pre.age_yrs < 17.75 ~ 11, 
+         child.parent.pre.age_yrs > 17.74 & 
+           child.parent.pre.age_yrs < 18.75 ~ 12, 
+         TRUE ~ as.numeric(child.parent.pre.age_yrs)
+         )
+         )
+```
+
+Check this worked
+```{r inspect school grade}
+arfid_data %>% 
+  select(
+    ARFID_ID, 
+    child.parent.pre.age_yrs, 
+    school_grade, 
+    rcads.social_phobia_numeric, 
+    rcads.panic_disorder_numeric, 
+    rcads.separation_anxiety_numeric, 
+    rcads.generalised_anxiety_numeric
+  )
+```
+It worked - checked frequency of each grade
+
+```{r school grade frequency}
+arfid_data %>% 
+  freq(school_grade)
+```
+
+
+# Calculate RCADS t-scores
+
+Need to change reference_dat to reference grade
+And then use paste: 
+"rcads_anxiety" 
+gender, 
+reference_grade, 
+sep = "_"
+
+e.g., "rcads_anxiety_Male_3_4"
+
+
+Test variables for the function
+This chunk does not get evaluated/included
+```{r eval=FALSE, include=FALSE}
+data = arfid_data
+grade = c(11, 12)
+gender = "Male"
+raw_score = "rcads.panic_disorder_numeric"
+t_score = "PD"
+```
+
+Testing for the data frame name
+This chunk does not get evaluated/incldued
+```{r eval=FALSE, include=FALSE}
+paste0("rcads_anxiety_", gender, "_", paste(grade, collapse = "_"))
+```
+
+Create function
+```{r rcads function}
+rcads_t_score <- function(
+  data,
+  grade,
+  gender,
+  raw_score,
+  t_score
+) 
+  {
+  
+filtered_data <- data %>% # name of data frame generic
+    filter(
+    child.parent.pre.biological_sex_of_your_child_at_birth_binary == gender,
+    school_grade %in% grade
+    ) %>%
+    select(
+      ARFID_ID,
+      RAW = raw_score 
+  )
+
+assign(
+  "reference_dat",
+  eval(as.name(paste0("rcads_anxiety_", gender, "_", paste(grade, collapse = "_")))),
+)
+
+filtered_reference <- reference_dat %>% 
+  select(
+    RAW,
+    t_score) 
+
+
+rcads_anx_joined <- filtered_data %>% 
+  left_join(
+    y = filtered_reference, 
+    by = "RAW"
+  )
+}
+```
+
+
+```{r male 3-4 SP }
+rcads_t_score(
+  data = arfid_data,
+  grade = c(3, 4),
+  gender = "Male",
+  raw_score = "rcads.social_phobia_numeric",
+  t_score = "SP"
+)
+```
+
+~ would need to add OCD and depression for future use of function (RCADS subscales)
+```{r vectors for the loop}
+grade_vector1 <- c(3, 5, 7, 9, 11)
+grade_vector2 <- c(4, 6, 8, 10, 12)
+
+raw_score_vector <- c("rcads.generalised_anxiety_numeric", 
+                      "rcads.panic_disorder_numeric", 
+                      "rcads.separation_anxiety_numeric", 
+                      "rcads.social_phobia_numeric")
+
+t_score_vector <- c("GAD", 
+                    "PD",
+                    "SAD", 
+                    "SP")
+
+gender_vector <- c("Male", "Female")
+
+```
+
+For each row and for each column, assign values based on position: product of two indexes
+```{r for loop}
+foreach(grade_loop1 = grade_vector1, grade_loop2 = grade_vector2) %do% {
+    for(gender_loop in gender_vector) {
+      foreach(raw_score_loop = raw_score_vector, t_score_loop = t_score_vector) %do% {
+        df1 <-
+          rcads_t_score(
+          data = arfid_data,
+          grade = c(grade_loop1, grade_loop2),
+          gender = gender_loop,
+          raw_score = raw_score_loop,
+          t_score = t_score_loop
+        )
+        
+        assign(
+          paste0("rcads_", t_score_loop, "_", gender_loop, "_", grade_loop1, "_", grade_loop2, "_output"),
+          df1
+          )
+      }
+    }
+  }
+```
+
+
+rbind together the different outputs from the function into one column and rename the column to the corresponding t-score. 
+```{r}
+rcads_t_score_GAD <-
+  rbind(
+    rcads_GAD_Female_3_4_output,
+    rcads_GAD_Female_5_6_output,
+    rcads_GAD_Female_7_8_output,
+    rcads_GAD_Female_9_10_output,
+    rcads_GAD_Female_11_12_output,
+    rcads_GAD_Male_3_4_output,
+    rcads_GAD_Male_5_6_output,
+    rcads_GAD_Male_7_8_output,
+    rcads_GAD_Male_9_10_output,
+    rcads_GAD_Male_11_12_output
+  )
+
+rcads_t_score_GAD <- rcads_t_score_GAD %>% 
+  rename("rcads.generalised_anxiety_tscore" = "GAD")
+
+rcads_t_score_GAD
+```
+
+```{r RCADS t-score PD}
+rcads_t_score_PD <-
+  rbind(
+    rcads_PD_Female_3_4_output,
+    rcads_PD_Female_5_6_output,
+    rcads_PD_Female_7_8_output,
+    rcads_PD_Female_9_10_output,
+    rcads_PD_Female_11_12_output,
+    rcads_PD_Male_3_4_output,
+    rcads_PD_Male_5_6_output,
+    rcads_PD_Male_7_8_output,
+    rcads_PD_Male_9_10_output,
+    rcads_PD_Male_11_12_output
+  )
+
+rcads_t_score_PD <- rcads_t_score_PD %>% 
+  rename("rcads.panic_disorder_tscore" = "PD")
+
+rcads_t_score_PD
+```
+
+```{r RCADS t-score PD}
+rcads_t_score_SP <-
+  rbind(
+    rcads_SP_Female_3_4_output,
+    rcads_SP_Female_5_6_output,
+    rcads_SP_Female_7_8_output,
+    rcads_SP_Female_9_10_output,
+    rcads_SP_Female_11_12_output,
+    rcads_SP_Male_3_4_output,
+    rcads_SP_Male_5_6_output,
+    rcads_SP_Male_7_8_output,
+    rcads_SP_Male_9_10_output,
+    rcads_SP_Male_11_12_output
+  )
+
+rcads_t_score_SP <- rcads_t_score_SP %>% 
+  rename("rcads.social_phobia_tscore" = "SP")
+
+rcads_t_score_SP
+```
+
+```{r}
+rcads_t_score_SAD <-
+  rbind(
+    rcads_SAD_Female_3_4_output,
+    rcads_SAD_Female_5_6_output,
+    rcads_SAD_Female_7_8_output,
+    rcads_SAD_Female_9_10_output,
+    rcads_SAD_Female_11_12_output,
+    rcads_SAD_Male_3_4_output,
+    rcads_SAD_Male_5_6_output,
+    rcads_SAD_Male_7_8_output,
+    rcads_SAD_Male_9_10_output,
+    rcads_SAD_Male_11_12_output
+  )
+
+rcads_t_score_SAD <- rcads_t_score_SAD %>% 
+  rename("rcads.separation_anxiety_tscore" = "SAD")
+
+rcads_t_score_SAD
+```
+
+##Merge the t-scores into one dataframe 
+And then merge that one data frame with arfid_dat
+
+Drop raw scores by selecting ARFID_ID and RCADS t-score
+Already have the RCADS raw score in arfid_dat data frame. 
+```{r merge GAD and PD}
+rcads_tscores_merged <- rcads_t_score_GAD %>%
+  select(
+    ARFID_ID,
+    rcads.generalised_anxiety_tscore
+    ) %>% 
+  left_join(
+    y = rcads_t_score_PD %>%
+      select(
+        ARFID_ID,
+        rcads.panic_disorder_tscore
+        ),
+    by = "ARFID_ID"
+    )
+
+rcads_tscores_merged
+```
+
+```{r merge SP}
+rcads_tscores_merged.2 <- rcads_tscores_merged %>% 
+  left_join(y = rcads_t_score_SP %>% 
+              select("ARFID_ID", 
+                     "rcads.social_phobia_tscore"
+                     ), 
+            by = "ARFID_ID")
+
+rcads_tscores_merged.2
+```
+
+```{r merge SAD}
+rcads_tscores_merged.3 <- rcads_tscores_merged.2 %>% 
+  left_join(y = rcads_t_score_SAD %>% 
+              select("ARFID_ID", 
+                     "rcads.separation_anxiety_tscore"
+                     ), 
+            by = "ARFID_ID")
+
+rcads_tscores_merged.3
+```
+
+##Join t-scores with ARFID_dat
+
+```{r merge with arfid_dat}
+arfid_dat <- arfid_data %>% 
+  left_join(y = rcads_tscores_merged.3, 
+            by = "ARFID_ID")
+
+```
+
+Check RCADS raw score against the appropriate school grade and gender t-score conversion table to check this worked 
+
+```{r check it worked}
+arfid_dat %>% 
+  select(ARFID_ID, 
+         child.parent.pre.biological_sex_of_your_child_at_birth_binary,
+         school_grade,
+         rcads.generalised_anxiety_numeric, 
+         rcads.generalised_anxiety_tscore, 
+         rcads.panic_disorder_numeric, 
+         rcads.panic_disorder_tscore, 
+         rcads.social_phobia_numeric, 
+         rcads.social_phobia_tscore, 
+         rcads.separation_anxiety_numeric, 
+         rcads.separation_anxiety_tscore)
+```
+It worked!! 
+
++++RW: can I now save it as arfid_dat ? 
++++CH: No because you are overwriting previous data. I would name the data differently when you read it in at the beginning
+
+```{r arfid_dat}
+arfid_dat
+```
+
+
+#Create t-score factors for each of the subscales
+
+https://www.camh.ca/-/media/files/rcads-quick-guide-pdf.pdf
+t-score below 65 = normal range 
+
+t-score of 65 to 69 = borderline clinical range 
+t-score of 65 or higher = 6% of population
+
+t-score of 70 or above = Clinical range
+t-score of 70 or higher = 2% of the population
+
++++CH: I would stay with the naming convention, e.g., rcads.social_phobia_categorical
+```{r social phobia categorical}
+arfid_dat <- arfid_dat %>% 
+  mutate(RCADS.social_phobia_categorical_numeric = 
+           case_when(rcads.social_phobia_tscore < 65 ~ 0, 
+                     rcads.social_phobia_tscore > 64 &
+                       rcads.social_phobia_tscore < 70 ~ 1, 
+                     rcads.social_phobia_tscore > 69 ~ 2))
+     
+arfid_dat %>% 
+  freq(RCADS.social_phobia_categorical_numeric)
+```
+
+```{r social phobia categorical factor}
+arfid_dat <- arfid_dat %>% 
+  mutate(RCADS.social_phobia_categorical = 
+           recode_factor(RCADS.social_phobia_categorical_numeric, 
+                         '0' = "Normal range", 
+                         '1' = "Borderline clinical range", 
+                         '2' = "Clinical range"))
+
+arfid_dat %>% 
+  freq(RCADS.social_phobia_categorical)
+```
+
+```{r generalised anxiety categorical}
+arfid_dat <- arfid_dat %>% 
+  mutate(RCADS.generalised_anxiety_categorical_numeric = 
+           case_when(rcads.generalised_anxiety_tscore < 65 ~ 0, 
+                     rcads.generalised_anxiety_tscore > 64 &
+                       rcads.generalised_anxiety_tscore < 70 ~ 1, 
+                     rcads.generalised_anxiety_tscore > 69 ~ 2))
+     
+arfid_dat %>% 
+  freq(RCADS.generalised_anxiety_categorical_numeric)
+```
+
+```{r generalised anxiety categorical factor}
+arfid_dat <- arfid_dat %>% 
+  mutate(RCADS.generalised_anxiety_categorical = 
+           recode_factor(RCADS.generalised_anxiety_categorical_numeric, 
+                         '0' = "Normal range", 
+                         '1' = "Borderline clinical range", 
+                         '2' = "Clinical range"))
+
+arfid_dat %>% 
+  freq(RCADS.generalised_anxiety_categorical)
+```
+
+```{r panic disorder categorical}
+arfid_dat <- arfid_dat %>% 
+  mutate(RCADS.panic_disorder_categorical_numeric = 
+           case_when(rcads.panic_disorder_tscore < 65 ~ 0, 
+                     rcads.panic_disorder_tscore > 64 &
+                       rcads.panic_disorder_tscore < 70 ~ 1, 
+                     rcads.panic_disorder_tscore > 69 ~ 2))
+     
+arfid_dat %>% 
+  freq(RCADS.panic_disorder_categorical_numeric)
+```
+
+```{r panic disorder categorical factor}
+arfid_dat <- arfid_dat %>% 
+  mutate(RCADS.panic_disorder_categorical = 
+           recode_factor(RCADS.panic_disorder_categorical_numeric, 
+                         '0' = "Normal range", 
+                         '1' = "Borderline clinical range", 
+                         '2' = "Clinical range"))
+
+arfid_dat %>% 
+  freq(RCADS.panic_disorder_categorical)
+```
+
+```{r sep anxiety categorical}
+arfid_dat <- arfid_dat %>% 
+  mutate(RCADS.separation_anxiety_categorical_numeric = 
+           case_when(rcads.separation_anxiety_tscore < 65 ~ 0, 
+                     rcads.separation_anxiety_tscore > 64 &
+                       rcads.separation_anxiety_tscore < 70 ~ 1, 
+                     rcads.separation_anxiety_tscore > 69 ~ 2))
+     
+arfid_dat %>% 
+  freq(RCADS.separation_anxiety_categorical_numeric)
+```
+
+```{r sep anxiety categorical factor}
+arfid_dat <- arfid_dat %>% 
+  mutate(RCADS.separation_anxiety_categorical = 
+           recode_factor(RCADS.separation_anxiety_categorical_numeric, 
+                         '0' = "Normal range", 
+                         '1' = "Borderline clinical range", 
+                         '2' = "Clinical range"))
+
+arfid_dat %>% 
+  freq(RCADS.separation_anxiety_categorical)
+```
+
+ 
+# Current View Tool cleaning 
+
+## Provisional Problem Items: 
+Separation anxiety, social anxiety, generalised anxiety, panic disorder, agoraphobia and specific phobia.
+On a scale of 0 - 3.
+
+
+Inspect data
+```{r inspect current view}
+arfid_dat %>% 
+  select(
+  currentview.cl.pre.1.anxious_away_from_caregivers_unc, 
+  currentview.cl.pre.2.anxious_in_social_situations_unc, 
+  currentview.cl.pre.3.anxious_generally_unc, 
+  currentview.cl.pre.5.panics_unc, 
+  currentview.cl.pre.7.avoids_specific_things_unc, 
+  currentview.cl.pre.6.avoids_going_out_unc
+  ) %>% 
+  freq()
+```
+
+Variables are currently character, but only contain numeric values - 
+need to convert to numeric. 
+ 
+```{r current view as numeric}
+arfid_dat <- arfid_dat %>% 
+  mutate(currentview.cl.pre.1.anxious_away_from_caregivers_numeric_unc = 
+           as.numeric(currentview.cl.pre.1.anxious_away_from_caregivers_unc))
+
+arfid_dat <- arfid_dat %>% 
+  mutate(currentview.cl.pre.2.anxious_in_social_situations_numeric_unc = 
+           as.numeric(currentview.cl.pre.2.anxious_in_social_situations_unc))
+
+arfid_dat <- arfid_dat %>% 
+  mutate(currentview.cl.pre.3.anxious_generally_numeric_unc = 
+           as.numeric(currentview.cl.pre.3.anxious_generally_unc))
+
+arfid_dat <- arfid_dat %>% 
+  mutate(currentview.cl.pre.5.panics_numeric_unc = 
+           as.numeric(currentview.cl.pre.5.panics_unc))
+
+arfid_dat <- arfid_dat %>% 
+  mutate(currentview.cl.pre.7.avoids_specific_things_numeric_unc = 
+           as.numeric(currentview.cl.pre.7.avoids_specific_things_unc))
+          
+arfid_dat <- arfid_dat %>% 
+  mutate(currentview.cl.pre.6.avoids_going_out_numeric_unc = 
+           as.numeric(currentview.cl.pre.6.avoids_going_out_unc))
+```
+
+
+Clean scale
+Set min and max scale: 
+```{r current view min and max scale}
+currentview.min.scale = 0
+currentview.max.scale = 3 
+```
+
+Create a vector including the numeric Current View anxiety items
+```{r current view numeric vector}
+currentview_cl_pre <- c(
+  "currentview.cl.pre.1.anxious_away_from_caregivers_numeric_unc", 
+  "currentview.cl.pre.2.anxious_in_social_situations_numeric_unc", 
+  "currentview.cl.pre.3.anxious_generally_numeric_unc", 
+  "currentview.cl.pre.5.panics_numeric_unc", 
+  "currentview.cl.pre.7.avoids_specific_things_numeric_unc", 
+  "currentview.cl.pre.6.avoids_going_out_numeric_unc") 
+```
+
+Clean the scale using the current view min and max scale. 
+```{r clean current view scale}
+arfid_dat <- arfid_dat %>%
+   mutate(
+     across(all_of(currentview_cl_pre),
+            .fns = list(clean = ~case_when(
+              . == -77 | . == -88 | . == -99 ~ .,
+              . < currentview.min.scale | . > currentview.max.scale ~ NA_real_, 
+              TRUE ~ .)))) %>%
+   rename_at(
+     vars(contains( "_unc_clean")),
+     list(~paste0(gsub("_unc_clean", "", .))))
+```
+
+```{r clean vector}
+currentview_clean_variables_numeric <- c(
+  "currentview.cl.pre.1.anxious_away_from_caregivers_numeric", 
+  "currentview.cl.pre.2.anxious_in_social_situations_numeric", 
+  "currentview.cl.pre.3.anxious_generally_numeric", 
+  "currentview.cl.pre.5.panics_numeric", 
+  "currentview.cl.pre.7.avoids_specific_things_numeric", 
+  "currentview.cl.pre.6.avoids_going_out_numeric") 
+```
+
+
+## Check for implausible values in cleaned variables
+```{r Check for implausible values in cleaned variables}
+dat_imp_n <- arfid_dat %>% 
+  select(all_of(currentview_clean_variables_numeric )) %>% 
+  filter(. == -66) %>% 
+  nrow()
+# If statement
+if (dat_imp_n == 0) {
+  print(paste0("The number of implausible values in the Current View variables is ", dat_imp_n, ". Can leave these variables as they are."))
+} else {
+  print(paste0("The number of implausible values in the Current View variables is ", dat_imp_n, ". Please investigate."))
+}
+```
+
+```{r column names}
+arfid_dat %>% 
+  colnames()
+```
+
+
+##Create factor versions of Current View
+0 None, 1 mild, 2 moderate and 3 severe
++++CH: Optimally all 6 variables would be recoded in one chunk
+```{r separation anxiety factor}
+arfid_dat <- arfid_dat %>% 
+  mutate(currentview.cl.pre.1.anxious_away_from_caregivers = 
+           recode_factor(currentview.cl.pre.1.anxious_away_from_caregivers_numeric, 
+                         '0' = "None", 
+                         '1' = "Mild", 
+                         '2' = "Moderate", 
+                         '3' = "Severe"))
+```
+
+```{r social anxiety factor}
+arfid_dat <- arfid_dat %>% 
+  mutate(currentview.cl.pre.2.anxious_in_social_situations = 
+           recode_factor(currentview.cl.pre.2.anxious_in_social_situations_numeric, 
+                         '0' = "None", 
+                         '1' = "Mild", 
+                         '2' = "Moderate", 
+                         '3' = "Severe"))
+```
+
+```{r generalised anxiety factor}
+arfid_dat <- arfid_dat %>% 
+  mutate(currentview.cl.pre.3.anxious_generally = 
+           recode_factor(currentview.cl.pre.3.anxious_generally_numeric, 
+                         '0' = "None", 
+                         '1' = "Mild", 
+                         '2' = "Moderate", 
+                         '3' = "Severe"))
+```
+
+```{r panic disorder factor}
+arfid_dat <- arfid_dat %>% 
+  mutate(currentview.cl.pre.5.panics = 
+           recode_factor(currentview.cl.pre.5.panics_numeric, 
+                         '0' = "None", 
+                         '1' = "Mild", 
+                         '2' = "Moderate", 
+                         '3' = "Severe"))
+```
+
+```{r specific phobia factor}
+arfid_dat <- arfid_dat %>% 
+  mutate(currentview.cl.pre.7.avoids_specific_things = 
+           recode_factor(currentview.cl.pre.7.avoids_specific_things_numeric, 
+                         '0' = "None", 
+                         '1' = "Mild", 
+                         '2' = "Moderate", 
+                         '3' = "Severe"))
+```
+
+```{r agoraphobia factor}
+arfid_dat <- arfid_dat %>% 
+  mutate(currentview.cl.pre.6.avoids_going_out = 
+           recode_factor(currentview.cl.pre.6.avoids_going_out_numeric, 
+                         '0' = "None", 
+                         '1' = "Mild", 
+                         '2' = "Moderate", 
+                         '3' = "Severe"))
+```
+
+
+
+#Examine anxiety trait distributions and descriptives of anxiety
+RCADS - age 8 years and above
+Current View - all ages
+
+## Descriptive tables
+
+### Current view 
+
+Check the frequency of anxiety responses of current view - all ages
+
++++RW: Sometimes I get an error when this runs and other times I don't 
+Error: Error in tempfile("_rs_html_", tmpdir = ctx$outputFolder, fileext = ".html") : temporary name too long
+
+```{r frequency table}
+current_view_data <- arfid_dat %>% 
+  select(currentview.cl.pre.1.anxious_away_from_caregivers, 
+         currentview.cl.pre.2.anxious_in_social_situations, 
+         currentview.cl.pre.3.anxious_generally, 
+         currentview.cl.pre.5.panics, 
+         currentview.cl.pre.6.avoids_going_out, 
+         currentview.cl.pre.7.avoids_specific_things
+         )
+
+  
+current_view_descr <- tbl_summary(
+  data = current_view_data, 
+            label = list(
+              currentview.cl.pre.1.anxious_away_from_caregivers ~ 
+                "Seperation anxiety", 
+              currentview.cl.pre.2.anxious_in_social_situations ~ 
+                "Social anxiety", 
+              currentview.cl.pre.3.anxious_generally ~ 
+                "Generalised anxiety", 
+              currentview.cl.pre.5.panics ~ 
+                "Panic Disorder",
+              currentview.cl.pre.6.avoids_going_out ~ 
+                "Agoraphobia",
+              currentview.cl.pre.7.avoids_specific_things ~ 
+                "Specific phobia"
+            )) %>% 
+  bold_labels() %>% 
+  add_n() %>% 
+  modify_header(label ~ "**Current View**")
+
+current_view_descr
+```
+
+
+
+###RCADS subscales - 8 years + 
+Continuous data. 
+
+Descriptive statistics
+```{r rcads vector}
+rcads_data <- arfid_dat %>% 
+  select(rcads.social_phobia_numeric, 
+         rcads.panic_disorder_numeric, 
+         rcads.generalised_anxiety_numeric, 
+         rcads.separation_anxiety_numeric)
+```
+
+```{r rcads descriptives}
+tbl_summary(rcads_data, 
+            label = list(rcads.social_phobia_numeric ~ 
+                           "Social Phobia", 
+                         rcads.panic_disorder_numeric ~ 
+                           "Panic Disorder", 
+                         rcads.generalised_anxiety_numeric ~
+                           "Generalised Anxiety", 
+                         rcads.separation_anxiety_numeric ~ 
+                           "Separation Anxiety"), 
+         
+         type = list(rcads.social_phobia_numeric ~ 
+                       "continuous2", 
+                     rcads.panic_disorder_numeric ~ 
+                       "continuous2",  
+                     rcads.generalised_anxiety_numeric ~ 
+                       "continuous2",  
+                     rcads.separation_anxiety_numeric ~ 
+                       "continuous2"), 
+         
+         statistic = all_continuous2() ~ c(
+          "{mean} ({SD})", 
+          "{median} ({p25}, {p75})",
+          "{min}, {max}")) %>% 
+  bold_labels() %>% 
+  add_n() %>% 
+  modify_header(label ~ "**RCADS**")
+```
+
+
+##Plot distribution to examine endorsements
++++CH: Please, re-write in ggplot2
+```{r social phobia hist}
+h1 <- arfid_dat %>% 
+  ggplot(aes(x = rcads.social_phobia_numeric)) + 
+  geom_histogram(color="darkblue", fill="lightblue") + 
+  labs(x = "RCADS: social phobia", 
+      y = "Count")
+
+h1
+```
+
+```{r density}
+arfid_dat %>% 
+  ggplot(aes(x = rcads.social_phobia_numeric)) + 
+  geom_density() + 
+  labs(x = "RCADS: Social Phobia",
+       y = "Density")
+```
+
+```{r panic hist}
+h2 <- arfid_dat %>% 
+  ggplot(aes(x = rcads.panic_disorder_numeric)) + 
+  geom_histogram(color = "darkblue", 
+                 fill = "lightblue") + 
+  labs(x = "RCADS: Panic Disorder", 
+       y = "Count")
+
+h2
+```
+
+```{r panic density}
+arfid_dat %>% 
+  ggplot(aes(x= rcads.panic_disorder_numeric)) +
+  geom_density() +
+  labs(x = "RCADS: Panic Disorder", 
+       y = "Density")
+```
+
+```{r generalised anx hist}
+h3 <- arfid_dat %>% 
+  ggplot(aes(rcads.generalised_anxiety_numeric)) +
+  geom_histogram(color="darkblue", fill="lightblue") + 
+  labs(x = "RCADS: Generalised anxiety", 
+       y = "Count")
+
+h3
+```
+
+```{r generalised anx density}
+arfid_dat %>% 
+  ggplot(aes(x = rcads.generalised_anxiety_numeric)) + 
+  geom_density() + 
+  labs(x = "RCADS: Generalised Anxiety", 
+       y = "Density")
+```
+
+```{r sep anx hist}
+h4 <- arfid_dat %>% 
+  ggplot(aes(rcads.separation_anxiety_numeric)) + 
+  geom_histogram(color="darkblue", fill="lightblue") + 
+  labs(x = "RCADS: Separation anxiety", 
+       y = "Count")
+
+h4
+```
+
+```{r sep anx density}
+arfid_dat %>% 
+  ggplot(aes(x = rcads.separation_anxiety_numeric)) + 
+  geom_density() + 
+  labs(x = "RCADS: Separation Anxiety", 
+       y = "Density")
+```
++++CH: Join the 3 bar charts together with cowplot and then save them with ggsave
+
+```{r cowplot formatting of histograms}
+rcads_histograms <- 
+  plot_grid(h1, h2, h3, h4,
+            labels = c('A', 'B', 'C', 'D'), 
+            label_size = 12)
+
+rcads_histograms
+```
+
+
+Save histograms of RCADS anxiety data
+```{r save RCADs hist}
+ggsave(
+  filename = paste0("RCADS anxiety_histograms", date, ".pdf"),
+  path = "../plots/",
+  plot = rcads_histograms,
+  device = "pdf",
+  scale = 1,
+  width = 10,
+  height = 10,
+  dpi = 300,
+  limitsize = FALSE,
+  bg = NULL
+  )
+```
+
+
+#Check how many patients have missing data in current view and/or RCADS 
+
++++CH: This should be 3 separate chunks and you need to describe with text what you are doing
++++CH: And each chunk should have an answer sentence
+
+Panic disorder: 
+Filter patients with NA in both RCADS and current view panic disorder
+```{r panic disorder missing}
+arfid_dat %>% 
+  select(ARFID_ID, 
+         rcads.panic_disorder_numeric,
+         currentview.cl.pre.5.panics_numeric) %>% 
+  filter(is.na(rcads.panic_disorder_numeric) & 
+           is.na(currentview.cl.pre.5.panics_numeric)) %>%
+  nrow() # +++CH: You can add nrow here directly
+```
+10 patients have missing data in both for panic disorder
+
+Filter patients who have data from RCADS, but missing in Current View
+```{r panic current view missing}
+arfid_dat %>% 
+  select(ARFID_ID, 
+         rcads.panic_disorder_numeric,
+         currentview.cl.pre.5.panics_numeric) %>% 
+  filter(rcads.panic_disorder_numeric < 26 & 
+           is.na(currentview.cl.pre.5.panics_numeric)) %>% 
+  nrow()
+```
+7 patients have data missing in current view for panic disorder (but not for RCADS)
+
+
+Filter patients who have data in current view, but NA in RCADS. 
+```{r panic RCADS missing}
+arfid_dat %>% 
+  select(ARFID_ID, 
+         rcads.panic_disorder_numeric,
+         currentview.cl.pre.5.panics_numeric) %>% 
+  filter(currentview.cl.pre.5.panics_numeric < 4 & 
+           is.na(rcads.panic_disorder_numeric)) %>% 
+  nrow()
+```
+39 patients have missing data for RCADS for panic disorder (but not current view)
+
+
+##Social Phobia 
+Filter patients who have NA in both RCADS and current view for social phobia
+```{r social missing}
+arfid_dat %>% 
+  select(ARFID_ID, 
+         rcads.social_phobia_numeric,
+         currentview.cl.pre.2.anxious_in_social_situations_numeric) %>% 
+  filter(is.na(rcads.social_phobia_numeric) & 
+           is.na(currentview.cl.pre.2.anxious_in_social_situations_numeric)) %>% 
+  nrow()
+``` 
+9 patients have missing data for RCADS and current view for social phobia
+
+Filter patients who have missing data in current view for social phobia
+```{r social current view missing}
+arfid_dat %>% 
+  select(ARFID_ID, 
+         rcads.social_phobia_numeric,
+         currentview.cl.pre.2.anxious_in_social_situations_numeric) %>% 
+  filter(rcads.social_phobia_numeric < 28 & 
+           is.na(currentview.cl.pre.2.anxious_in_social_situations_numeric)) %>% 
+  nrow()
+```
+6 patients have missing data in current view (but not RCADS)
+
+Filter patients who have missing data in RCADS social phobia
+```{r social RCADS missing}
+arfid_dat %>% 
+  select(ARFID_ID, 
+         rcads.social_phobia_numeric,
+         currentview.cl.pre.2.anxious_in_social_situations_numeric) %>% 
+  filter(currentview.cl.pre.2.anxious_in_social_situations_numeric < 4 & 
+           is.na(rcads.social_phobia_numeric))%>% 
+  nrow() 
+```
+40 patients have missing data in RCADS for social phobia
+
+
+##Generalised anxiety
+Filter patients who have missing data in both RCADS and current view for generalised anxiety
+```{r generalised missing}
+arfid_dat %>% 
+  select(ARFID_ID, 
+         rcads.generalised_anxiety_numeric,
+         currentview.cl.pre.3.anxious_generally_numeric) %>% 
+  filter(is.na(rcads.generalised_anxiety_numeric) & 
+           is.na(currentview.cl.pre.3.anxious_generally_numeric)) %>% 
+  nrow()
+```
+10 patients have missing data in both RCADS and CV for generalised anxiety
+
+Filter patients who have NA in current view generalised anxiety 
+```{r generalised current view missing}
+arfid_dat %>% 
+  select(ARFID_ID, 
+         rcads.generalised_anxiety_numeric,
+         currentview.cl.pre.3.anxious_generally_numeric) %>% 
+  filter(rcads.generalised_anxiety_numeric < 19 & 
+           is.na(currentview.cl.pre.3.anxious_generally_numeric)) %>% 
+  nrow()
+```
+6 patients have missing data in current view for generalised anxiety (but not in RCADS)
+
+Filter patients who have NA in RCADS generalised anxiety
+```{r generalised RCADS missing}
+arfid_dat %>% 
+  select(ARFID_ID, 
+         rcads.generalised_anxiety_numeric,
+         currentview.cl.pre.3.anxious_generally_numeric) %>% 
+  filter(currentview.cl.pre.3.anxious_generally_numeric < 4 & 
+           is.na(rcads.generalised_anxiety_numeric)) %>% 
+  nrow() 
+```
+39 patients who have missing data in RCADS generalised anxiety (but not in CV)
+
+
+##Separation anxiety
+Filter patients who have missing data in both RCADS and CV separation anxiety
+```{r separation missing}
+arfid_dat %>% 
+  select(ARFID_ID, 
+         rcads.separation_anxiety_numeric,
+         currentview.cl.pre.1.anxious_away_from_caregivers_numeric) %>% 
+  filter(is.na(rcads.separation_anxiety_numeric) & 
+           is.na(currentview.cl.pre.1.anxious_away_from_caregivers_numeric)) %>% 
+  nrow()
+```
+10 patients have missing data in both RCADS and CV for separation anxiety
+
+Filter patients who have missing data in current view for separation anxiety
+```{r separation current view missing}
+arfid_dat %>% 
+  select(ARFID_ID, 
+         rcads.separation_anxiety_numeric,
+         currentview.cl.pre.1.anxious_away_from_caregivers_numeric) %>% 
+  filter(rcads.separation_anxiety_numeric < 18 & 
+           is.na(currentview.cl.pre.1.anxious_away_from_caregivers_numeric)) %>% 
+  nrow()
+```
+6 patients have missing data in current view for separation anxiety (but not in RCADS)
+
+Filter patients who have RCADS missing data for separation anxiety
+```{r separation RCADS missing}
+arfid_dat %>% 
+  select(ARFID_ID, 
+         rcads.separation_anxiety_numeric,
+         currentview.cl.pre.1.anxious_away_from_caregivers_numeric) %>% 
+  filter(currentview.cl.pre.1.anxious_away_from_caregivers_numeric < 3 & 
+           is.na(rcads.separation_anxiety_numeric)) %>% 
+  nrow()
+```
+39 patients have missing data in RCADS separation anxiety (but not CV)
+
+
+
+
+#Check correlations between
+1. RCADS raw scores and Current View 
+2. RCADS t-scores and Current View
+
+##1. RCADS raw scores and Current View: anxiety traits
+
+```{r raw - gen anx}
+c1 <- arfid_dat %>% 
+  ggplot(aes(x = rcads.generalised_anxiety_numeric, 
+             y = currentview.cl.pre.3.anxious_generally_numeric)) +
+  geom_point() + 
+  geom_smooth(method = lm) +
+  labs(x = "RCADS generalised anxiety raw score", 
+       y = "Current View generalised anxiety") + 
+  theme_bw()
+
+c1
+```
+
+### Panic Disorder 
+```{r raw - panic disorder}
+c2 <- arfid_dat %>% 
+  ggplot(aes(x = rcads.panic_disorder_numeric, 
+             y = currentview.cl.pre.5.panics_numeric)) +
+  geom_point() + 
+  geom_smooth(method = lm) +
+  labs(x = "RCADS panic disorder raw score ", 
+       y = "Current View panic disorder") + 
+  theme_bw()
+
+c2
+```
+
+### Social Phobia
+```{r raw - social phobia}
+c3 <- arfid_dat %>% 
+  ggplot(aes(x = rcads.social_phobia_numeric, 
+             y = currentview.cl.pre.2.anxious_in_social_situations_numeric)) +
+  geom_point() + 
+  geom_smooth(method = lm) +
+  labs(x = "RCADS social phobia raw score", 
+       y = "Current View social phobia") + 
+  theme_bw()
+
+c3
+```
+
+### Separation anxiety
+```{r raw - sep anx}
+c4 <- arfid_dat %>% 
+  ggplot(aes(x = rcads.separation_anxiety_numeric, 
+             y = currentview.cl.pre.1.anxious_away_from_caregivers_numeric)) +
+  geom_point() + 
+  geom_smooth(method = lm) +
+  labs(x = "RCADS separation anxiety raw score", 
+       y = "Current View separation anxiety") + 
+  theme_bw()
+
+c4
+```
+
+### Plot grids as one
+```{r raw plot_grids}
+raw_cor_plot <- 
+  plot_grid(c1, c2, c3, c4, 
+          labels = c("A", "B", "C", "D"), 
+          label_size = 12)
+```
+
+### Save RCADS raw score and CV correlation scatterplots
+```{r save raw correlations}
+ggsave(
+  filename = paste0("anxiety_raw_cor_plots", date, ".pdf"),
+  path = "../plots/",
+  plot = raw_cor_plot,
+  device = "pdf",
+  scale = 1,
+  width = 10,
+  height = 10,
+  dpi = 300,
+  limitsize = FALSE,
+  bg = NULL
+  )
+```
+
+
+## 2. RCADS t-scores and current View: anxiety traits
+
+```{r t-score - generalised anx}
+c1a <- arfid_dat %>% 
+  ggplot(aes(x = rcads.generalised_anxiety_tscore, 
+             y = currentview.cl.pre.3.anxious_generally_numeric)) +
+  geom_point() + 
+  geom_smooth(method = lm) +
+  labs(x = "RCADS generalised anxiety t-score", 
+       y = "Current View generalised anxiety") + 
+  theme_bw()
+
+c1a
+```
+
+### Panic disorder
+```{r t-score - panic disorder}
+c2a <- arfid_dat %>% 
+  ggplot(aes(x = rcads.panic_disorder_tscore, 
+             y = currentview.cl.pre.5.panics_numeric)) +
+  geom_point() + 
+  geom_smooth(method = lm) +
+  labs(x = "RCADS panic disorder t-score ", 
+       y = "Current View panic disorder") + 
+  theme_bw()
+
+c2a
+```
+
+### Social Phobia
+```{r t-score social phobia}
+c3a <- arfid_dat %>% 
+  ggplot(aes(x = rcads.social_phobia_tscore, 
+             y = currentview.cl.pre.2.anxious_in_social_situations_numeric)) +
+  geom_point() + 
+  geom_smooth(method = lm) +
+  labs(x = "RCADS social phobia t-score", 
+       y = "Current View social phobia") + 
+  theme_bw()
+
+c3a
+```
+
+
+### Separation anxiety
+```{r t-score panic disorder}
+c4a <- arfid_dat %>% 
+  ggplot(aes(x = rcads.separation_anxiety_tscore, 
+             y = currentview.cl.pre.1.anxious_away_from_caregivers_numeric)) +
+  geom_point() + 
+  geom_smooth(method = lm) +
+  labs(x = "RCADS separation anxiety t-score", 
+       y = "Current View separation anxiety") + 
+  theme_bw()
+
+c4a
+```
+
+
+### Plot grids as one
+```{r t-score plot_grids}
+tscore_cor_plot <- 
+  plot_grid(c1a, c2a, c3a, c4a, 
+          labels = c("A", "B", "C", "D"), 
+          label_size = 12)
+
+tscore_cor_plot
+```
+
+### Save RCADS t-scores and CV correlations
+```{r save t-score corrs}
+ggsave(
+  filename = paste0("anxiety_tscore_cor_plots", date, ".pdf"),
+  path = "../plots/",
+  plot = tscore_cor_plot,
+  device = "pdf",
+  scale = 1,
+  width = 10,
+  height = 10,
+  dpi = 300,
+  limitsize = FALSE,
+  bg = NULL
+  )
+```
+
+
+
+#Combine current view information with RCADS: 
+
+Use z-scores of RCADS raw score, RCADS t-scores, and current view 
+Use z-scores to combine information from RCADS and current view 
+
+
+##Social phobia
+###RCADS raw score 
+```{r social phobia mean and sd}
+mean(arfid_dat$rcads.social_phobia_numeric, na.rm = TRUE)
+sd(arfid_dat$rcads.social_phobia_numeric, na.rm = TRUE)
+```
+
+```{r RCADS social phobia z-scores}
+arfid_dat$rcads.social_phobia_zscore <- NA
+
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.social_phobia_zscore = 
+           (rcads.social_phobia_numeric - 
+              mean(rcads.social_phobia_numeric,
+                   na.rm = TRUE))/
+              sd(rcads.social_phobia_numeric, 
+                 na.rm = TRUE
+              )
+         )
+```
+
+Check this worked
+```{r inspect output}
+arfid_dat %>% 
+  select(rcads.social_phobia_numeric,
+         rcads.social_phobia_zscore)
+```
+
+Check mean and sd
+```{r social phobia zscore mean & sd}
+mean(arfid_dat$rcads.social_phobia_zscore, na.rm = TRUE)
+sd(arfid_dat$rcads.social_phobia_zscore, na.rm = TRUE)
+```
+Yes - mean of 0 and sd of 1
+
+###RCADS t-score
+Convert z-score from RCADS t-scores to compare 
+```{r rcads social phobia t-score z-score}
+arfid_dat$rcads.social_phobia_tscore_zscore <- NA
+
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.social_phobia_tscore_zscore = 
+           (rcads.social_phobia_tscore - 
+              mean(rcads.social_phobia_tscore,
+                   na.rm = TRUE))/
+              sd(rcads.social_phobia_tscore, 
+                 na.rm = TRUE
+              )
+         )
+```
+
+```{r rcads social phobia t-score z-score mean & sd}
+mean(arfid_dat$rcads.social_phobia_tscore_zscore, na.rm = TRUE)
+sd(arfid_dat$rcads.social_phobia_tscore_zscore, na.rm = TRUE)
+```
+
+
+###Current View
+```{r CV social phobia z score}
+arfid_dat$CV.social_phobia_zscore <- NA
+
+arfid_dat <- arfid_dat %>% 
+  mutate(CV.social_phobia_zscore = 
+           (currentview.cl.pre.2.anxious_in_social_situations_numeric - 
+              mean(currentview.cl.pre.2.anxious_in_social_situations_numeric, #+++CH: It doesn't need arfid_dat$
+                   na.rm = TRUE))/
+              sd(currentview.cl.pre.2.anxious_in_social_situations_numeric, 
+                 na.rm = TRUE
+              )
+         )
+```
+
+check this worked with mean and sd
+```{r CV social phobia z score mean & sd}
+mean(arfid_dat$CV.social_phobia_zscore, na.rm = TRUE)
+sd(arfid_dat$CV.social_phobia_zscore, na.rm = TRUE)
+```
+
+## Generalised anxiety 
+###RCADS raw score
+```{r RCADS generalised anx z-score}
+arfid_dat$rcads.generalised_anxiety_zscore <- NA
+
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.generalised_anxiety_zscore = 
+           (rcads.generalised_anxiety_numeric - 
+              mean(arfid_dat$rcads.generalised_anxiety_numeric,
+                   na.rm = TRUE))/
+              sd(arfid_dat$rcads.generalised_anxiety_numeric, 
+                 na.rm = TRUE
+              )
+         )
+```
+
+Checked this worked with mean and sd 
+```{r RCADS generalised anx z-score mean & sd}
+mean(arfid_dat$rcads.generalised_anxiety_zscore, na.rm = TRUE)
+sd(arfid_dat$rcads.generalised_anxiety_zscore, na.rm = TRUE)
+```
+
+###rcads t-score
+```{r rcads generalised anxiety t-score z-score}
+arfid_dat$rcads.generalised_anxiety_tscore_zscore <- NA
+
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.generalised_anxiety_tscore_zscore = 
+           (rcads.generalised_anxiety_tscore - 
+              mean(rcads.generalised_anxiety_tscore,
+                   na.rm = TRUE))/
+              sd(rcads.generalised_anxiety_tscore, 
+                 na.rm = TRUE
+              )
+         )
+```
+
+```{r rcads generalised anxiety t-score z-score mean & SD}
+mean(arfid_dat$rcads.generalised_anxiety_tscore_zscore, na.rm = TRUE)
+sd(arfid_dat$rcads.generalised_anxiety_tscore_zscore, na.rm = TRUE)
+```
+
+###Current View
+```{r CV generalised anx z-score}
+arfid_dat$CV.generalised_anxiety_zscore <- NA
+
+arfid_dat <- arfid_dat %>% 
+  mutate(CV.generalised_anxiety_zscore = 
+           (currentview.cl.pre.3.anxious_generally_numeric - 
+              mean(arfid_dat$currentview.cl.pre.3.anxious_generally_numeric,
+                   na.rm = TRUE))/
+              sd(arfid_dat$currentview.cl.pre.3.anxious_generally_numeric, 
+                 na.rm = TRUE
+              )
+         )
+```
+
+Check this worked with mean and sd
+```{r CV generalised anx z-score mean & sd}
+mean(arfid_dat$CV.generalised_anxiety_zscore, na.rm = TRUE)
+sd(arfid_dat$CV.generalised_anxiety_zscore, na.rm = TRUE)
+```
+
+
+##Separation anxiety
+###RCADS raw scores
+```{r RCADS separation anx z-score}
+arfid_dat$rcads.separation_anxiety_zscore <- NA
+
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.separation_anxiety_zscore = 
+           (rcads.separation_anxiety_numeric - 
+              mean(arfid_dat$rcads.separation_anxiety_numeric,
+                   na.rm = TRUE))/
+              sd(arfid_dat$rcads.separation_anxiety_numeric, 
+                 na.rm = TRUE
+              )
+         )
+```
+
+Checked this worked with mean and sd 
+```{r RCADS sep anx z-score mean & sd}
+mean(arfid_dat$rcads.separation_anxiety_zscore, na.rm = TRUE)
+sd(arfid_dat$rcads.separation_anxiety_zscore, na.rm = TRUE)
+```
+
+###RCADS t-scores
+```{r rcads sep anxiety t-score z-score}
+arfid_dat$rcads.separation_anxiety_tscore_zscore <- NA
+
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.separation_anxiety_tscore_zscore = 
+           (rcads.separation_anxiety_tscore - 
+              mean(rcads.separation_anxiety_tscore,
+                   na.rm = TRUE))/
+              sd(rcads.separation_anxiety_tscore, 
+                 na.rm = TRUE
+              )
+         )
+```
+
+```{r rcads sep anxiety t-score z-score mean & SD}
+mean(arfid_dat$rcads.separation_anxiety_tscore_zscore, na.rm = TRUE)
+sd(arfid_dat$rcads.separation_anxiety_tscore_zscore, na.rm = TRUE)
+```
+
+###Current View
+```{r CV separation anx z-score}
+arfid_dat$CV.separation_anxiety_zscore <- NA
+
+arfid_dat <- arfid_dat %>% 
+  mutate(CV.separation_anxiety_zscore = 
+           (currentview.cl.pre.1.anxious_away_from_caregivers_numeric - 
+              mean(arfid_dat$currentview.cl.pre.1.anxious_away_from_caregivers_numeric,
+                   na.rm = TRUE))/
+              sd(arfid_dat$currentview.cl.pre.1.anxious_away_from_caregivers_numeric, 
+                 na.rm = TRUE
+              )
+         )
+```
+
+Check this worked with mean and sd 
+```{r CV sep anx z-score mean & sd}
+mean(arfid_dat$CV.separation_anxiety_zscore, na.rm = TRUE)
+sd(arfid_dat$CV.separation_anxiety_zscore, na.rm = TRUE) 
+```
+
+##Panic disorder 
+###RCADS raw score
+```{r RCADS panic disorder z-score}
+arfid_dat$rcads.panic_disorder_zscore <- NA
+
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.panic_disorder_zscore = 
+           (rcads.panic_disorder_numeric - 
+              mean(arfid_dat$rcads.panic_disorder_numeric,
+                   na.rm = TRUE))/
+              sd(arfid_dat$rcads.panic_disorder_numeric, 
+                 na.rm = TRUE
+              )
+         )
+```
+
+Checked this worked with mean and sd 
+```{r RCADS panic disorder z-score mean & sd}
+mean(arfid_dat$rcads.panic_disorder_zscore, na.rm = TRUE)
+sd(arfid_dat$rcads.panic_disorder_zscore, na.rm = TRUE)
+```
+
+###RCADS t-scores
+```{r rcads panic disorder t-score z-score}
+arfid_dat$rcads.panic_disorder_tscore_zscore <- NA
+
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.panic_disorder_tscore_zscore = 
+           (rcads.panic_disorder_tscore - 
+              mean(rcads.panic_disorder_tscore,
+                   na.rm = TRUE))/
+              sd(rcads.panic_disorder_tscore, 
+                 na.rm = TRUE
+              )
+         )
+```
+
+```{r rcads generalised anxiety t-score z-score mean & SD}
+mean(arfid_dat$rcads.panic_disorder_tscore_zscore, na.rm = TRUE)
+sd(arfid_dat$rcads.panic_disorder_tscore_zscore, na.rm = TRUE)
+```
+
+###Current View
+```{r CV panic disorder z-score}
+arfid_dat$CV.panic_disorder_zscore <- NA
+
+arfid_dat <- arfid_dat %>% 
+  mutate(CV.panic_disorder_zscore = 
+           (currentview.cl.pre.5.panics_numeric - 
+              mean(arfid_dat$currentview.cl.pre.5.panics_numeric,
+                   na.rm = TRUE))/
+              sd(arfid_dat$currentview.cl.pre.5.panics_numeric, 
+                 na.rm = TRUE
+              )
+         )
+```
+
+Check this worked with mean and sd 
+```{r cv panic disorder z-score mean & sd}
+mean(arfid_dat$CV.panic_disorder_zscore, na.rm = TRUE)
+sd(arfid_dat$CV.panic_disorder_zscore, na.rm = TRUE)  
+```
+
+## specific phobia
+
+```{r CV specific phobia z-score}
+arfid_dat$CV.specific_phobia_zscore <- NA
+
+arfid_dat <- arfid_dat %>% 
+  mutate(CV.specific_phobia_zscore = 
+           (currentview.cl.pre.7.avoids_specific_things_numeric - 
+              mean(arfid_dat$currentview.cl.pre.7.avoids_specific_things_numeric,
+                   na.rm = TRUE))/
+              sd(arfid_dat$currentview.cl.pre.7.avoids_specific_things_numeric, 
+                 na.rm = TRUE
+              )
+         )
+```
+
+Check this worked with mean and sd 
+```{r CV specific phobia z-score mean & sd}
+mean(arfid_dat$CV.specific_phobia_zscore, na.rm = TRUE)
+sd(arfid_dat$CV.specific_phobia_zscore, na.rm = TRUE)  
+```
+
+## agoraphobia
+```{r CV agoraphobia z-score}
+arfid_dat$CV.agoraphobia_zscore <- NA
+
+arfid_dat <- arfid_dat %>% 
+  mutate(CV.agoraphobia_zscore = 
+           (currentview.cl.pre.6.avoids_going_out_numeric - 
+              mean(arfid_dat$currentview.cl.pre.6.avoids_going_out_numeric,
+                   na.rm = TRUE))/
+              sd(arfid_dat$currentview.cl.pre.6.avoids_going_out_numeric, 
+                 na.rm = TRUE
+              )
+         )
+```
+
+check this worked with mean and sd
+```{r CV agoraphobia z-score mean & sd}
+mean(arfid_dat$CV.agoraphobia_zscore, na.rm = TRUE)
+sd(arfid_dat$CV.agoraphobia_zscore, na.rm = TRUE)
+```
+
+
+```{r inspect anxiety z-scores}
+arfid_dat %>% 
+  select(rcads.generalised_anxiety_zscore, 
+         rcads.generalised_anxiety_tscore_zscore,
+         CV.generalised_anxiety_zscore, 
+         rcads.panic_disorder_zscore, 
+         rcads.panic_disorder_tscore_zscore,
+         CV.panic_disorder_zscore, 
+         rcads.social_phobia_zscore, 
+         rcads.social_phobia_tscore_zscore,
+         CV.social_phobia_zscore, 
+         rcads.separation_anxiety_zscore, 
+         rcads.separation_anxiety_tscore_zscore,
+         CV.separation_anxiety_zscore,
+         CV.specific_phobia_zscore, 
+         CV.agoraphobia_zscore)
+```
+
+
+
+#Check correlation between RCADS raw scores, RCADS t-scores, and Current View z-scores 
+Check the correlation between RCADS and current view to know how best to combine information from both measures to increase statistical power for analyses
+
+##Generalised anxiety zscore correlations
+RCADS raw score and RCADS tscore correlation for generalised anxiety z-scores
+```{r GAD rcads raw and tscore corr}
+arfid_dat %>% 
+  select(rcads.generalised_anxiety_zscore, 
+         rcads.generalised_anxiety_tscore_zscore) %>% 
+  cor(use = "pairwise.complete.obs")
+```
+
+RCADS raw and CV correlation for generalised anxiety z-scores
+```{r GAD RCADS raw and CV corr}
+arfid_dat %>% 
+  select(rcads.generalised_anxiety_zscore,
+         CV.generalised_anxiety_zscore) %>% 
+  cor(use = "pairwise.complete.obs")
+```
+
+RCADS t-score and CV correlations for generalised anxiety 
+```{r GAD rcads tscore and CV corr}
+arfid_dat %>% 
+  select(rcads.generalised_anxiety_tscore_zscore,
+         CV.generalised_anxiety_zscore) %>% 
+  cor(use = "pairwise.complete.obs")
+```
+
+###Visiualise the relationship 
+RCADS raw score z-score and CV generalised anxiety z-score
+```{r GAD plot}
+p1 <- arfid_dat %>% 
+  ggplot(aes(x = rcads.generalised_anxiety_zscore,
+           y = CV.generalised_anxiety_zscore)) + 
+  geom_point() + 
+  geom_smooth(method = lm) +
+  labs(x = "RCADS generalised anxiety z-score", 
+       y = "Current View generalised anxiety z-score") + 
+  theme_bw()
+
+p1
+```
+
+
+##Panic disorder zscore correlation
+RCADS raw and tscore correlation of panic disorder z-scores 
+```{r PD RCADS raw and tscore corr}
+arfid_dat %>% 
+  select(rcads.panic_disorder_zscore,
+         rcads.panic_disorder_tscore_zscore) %>% 
+  cor(use = "pairwise.complete.obs")
+```
+
+RCADS raw and CV correlation of panic disorder z-scores 
+```{r PD RCADS raw and CV corr}
+arfid_dat %>% 
+  select(rcads.panic_disorder_zscore,
+         CV.panic_disorder_zscore) %>% 
+  cor(use = "pairwise.complete.obs")
+```
+
+RCADS tscore and CV correlation of panic disorder z-scores 
+```{r PD RCADS tscore and CV corr}
+arfid_dat %>% 
+  select(rcads.panic_disorder_tscore_zscore,
+         CV.panic_disorder_zscore) %>% 
+  cor(use = "pairwise.complete.obs")
+```
+
+###Visualise the relationship 
+Between RCADS raw score z-score and CV panic disorder z-score
+```{r PD plot}
+p2 <- arfid_dat %>% 
+  ggplot(aes(x = rcads.panic_disorder_zscore,
+             y = CV.panic_disorder_zscore)) + 
+  geom_point() + 
+  geom_smooth(method = lm) +
+  labs(x = "RCADS panic disorder z-score", 
+       y = "Current View panic disorder z-score") + 
+  theme_bw()
+
+p2
+```
+
+
+##Social phobia correlation
+RCADS raw score and tscore correlation for social phobia z-scores
+```{r SP RCADS raw and tscore corr}
+arfid_dat %>% 
+  select(rcads.social_phobia_zscore,
+         rcads.social_phobia_tscore_zscore) %>% 
+  cor(use = "pairwise.complete.obs")
+```
+
+RCADS raw score and CV correlation for social phobia z-scores
+```{r SP RCADS raw and CV corr}
+arfid_dat %>% 
+  select(rcads.social_phobia_zscore,
+         CV.social_phobia_zscore) %>% 
+  cor(use = "pairwise.complete.obs")
+```
+
+RCADS tscore and CV correlation for social phobia z-scores
+```{r SP rcads tscore and CV corr}
+arfid_dat %>% 
+  select(rcads.social_phobia_tscore_zscore,
+         CV.social_phobia_zscore) %>% 
+  cor(use = "pairwise.complete.obs")
+```
+
+##Visualise the relationship 
+between RCADS raw zscore and CV social phobia zscores
+
+```{r SP plots}
+p3 <- arfid_dat %>% 
+  ggplot(aes(x = rcads.social_phobia_zscore,
+             y = CV.social_phobia_zscore)) + 
+  geom_smooth(method = lm) +
+  geom_point() + 
+  labs(x = "RCADS social phobia z-score", 
+       y = "Current View social phobia z-score") + 
+  theme_bw()
+
+p3
+```
+
+
+##Separation anxiety correlation
+RCADS raw score and tscore correlation for separation anxiety z-scores
+```{r SAD rcads raw and tscore corr}
+arfid_dat %>% 
+  select(rcads.separation_anxiety_zscore,
+         rcads.separation_anxiety_tscore_zscore) %>% 
+  cor(use = "pairwise.complete.obs")
+```
+
+RCADS raw score and CV correlation for separation anxiety z-scores
+```{r SAD RCADS raw and CV corr}
+arfid_dat %>% 
+  select(rcads.separation_anxiety_zscore,
+         CV.separation_anxiety_zscore) %>% 
+  cor(use = "pairwise.complete.obs")
+```
+
+RCADS tscore and CV correlation for separation anxiety z-scores
+```{r SAD RCADS tscore and CV}
+arfid_dat %>% 
+  select(rcads.separation_anxiety_tscore_zscore,
+         CV.separation_anxiety_zscore) %>% 
+  cor(use = "pairwise.complete.obs")
+```
+
+##Visualise the relationship 
+between RCADS raw zscore and CV separation anxiety z-score
+```{r SAD plot}
+p4 <- arfid_dat %>% 
+  ggplot(aes(x = rcads.separation_anxiety_zscore,
+             y = CV.separation_anxiety_zscore)) + 
+  geom_point() + 
+  geom_smooth(method = lm) +
+  labs(x = "RCADS separation anxiety z-score", 
+       y = "Current View separation anxiety z-score") + 
+  theme_bw()
+
+p4
+```
+
+Use cowplot to format the correlation scatterplots 
+```{r format correlation scatterplots}
+correlation_zscore_plots <- 
+  plot_grid(p1, p2, p3, p4,
+            labels = c("A", 
+                       "B", 
+                       "C", 
+                       "D"), 
+            label_size = 12)
+
+correlation_zscore_plots
+```
+
+```{r save correlation scatterplots}
+ggsave(
+  filename = paste0("Correlation_anxiety_zscore_plots", date, ".pdf"), 
+  path = "../plots/",
+  plot = correlation_zscore_plots,
+  device = "pdf",
+  scale = 1,
+  width = 12,
+  height = 12,
+  dpi = 300,
+  limitsize = FALSE,
+  bg = NULL
+  )
+```
+
+
+Correlations between the RCADS raw score and CV z-scores range from 0.43 - 0.61
+
+
+#Combine Current View and RCADS raw score anxiety data to increase sample size 
+Use RCADS where the patient has that data (clinician recommendation)
+
+##Social Phobia
+```{r social phobia zscore}
+arfid_dat <- arfid_dat %>%
+  mutate(
+    social_phobia_zscore =
+      if_else(
+        condition =  is.na(rcads.social_phobia_zscore), 
+        true = CV.social_phobia_zscore,
+        false = rcads.social_phobia_zscore,
+        missing = NA_real_
+          )
+  )
+```
+
+
+Check this worked 
+```{r inspect output}
+arfid_dat %>% 
+  select(rcads.social_phobia_zscore, 
+         CV.social_phobia_zscore, 
+         social_phobia_zscore)
+```
+
+It worked - it used RCADS data when complete, and used Current View when RCADS was NA
+
++++CH: here inspect all three variables
+```{r social phobia zscore descriptives}
+arfid_dat %>% 
+  select(
+    rcads.social_phobia_zscore,
+    CV.social_phobia_zscore,
+    social_phobia_zscore
+    ) %>%
+  descr()
+```
+
+
+##Generalised anxiety
+
++++CH: change to tidyverse in the following
+```{r generalised anxiety zscore}
+arfid_dat <- arfid_dat %>%
+  mutate(
+    generalised_anxiety_zscore =
+      if_else(
+        condition =  is.na(rcads.generalised_anxiety_zscore), 
+        true = CV.generalised_anxiety_zscore,
+        false = rcads.generalised_anxiety_zscore,
+        missing = NA_real_
+          )
+  )
+```
+
+```{r generalised anxiety zscore descriptives}
+arfid_dat %>% 
+  select(rcads.generalised_anxiety_zscore, 
+        CV.generalised_anxiety_zscore, 
+        generalised_anxiety_zscore) %>% 
+  descr()
+```
+
+
+##Separation anxiety
+```{r sep anxiety z-score}
+arfid_dat <- arfid_dat %>%
+  mutate(
+    separation_anxiety_zscore =
+      if_else(
+        condition =  is.na(rcads.separation_anxiety_zscore), 
+        true = CV.separation_anxiety_zscore,
+        false = rcads.separation_anxiety_zscore,
+        missing = NA_real_
+          )
+  )
+```
+
+```{r sep anxiety z-score descriptives}
+arfid_dat %>% 
+  select(
+    rcads.separation_anxiety_zscore, 
+    CV.separation_anxiety_zscore, 
+    separation_anxiety_zscore
+    ) %>% 
+  descr()
+```
+
+
+##Panic disorder
+```{r panic disorder z-scrore}
+arfid_dat <- arfid_dat %>%
+  mutate(
+    panic_disorder_zscore =
+      if_else(
+        condition =  is.na(rcads.panic_disorder_zscore), 
+        true = CV.panic_disorder_zscore,
+        false = rcads.panic_disorder_zscore,
+        missing = NA_real_
+          )
+  )
+```
+
+```{r panic disorder z-score descriptives}
+arfid_dat %>% 
+  select(rcads.panic_disorder_zscore, 
+         CV.panic_disorder_zscore, 
+         panic_disorder_zscore) %>%
+  descr()
+```
+
+
+Use Current View z-scores for specific phobia and agoraphobia, as not measured on RCADS. 
+
+#Save cleaned dataset
+
+```{r check column names}
+arfid_dat %>% 
+  colnames()
+```
+
+
+Save merged dataset with demographic, PARDI, and anxiety data 
+ARFID and ASD diagnosis 
+Patient sex and age
+PARDI height and weight 
+PARDI diagnostic criteria 
+PARDI impairment severity 
+PARDI profiles
+RCADS anxiety subscales 
+Current View
+
+
+```{r save data as rds}
+saveRDS(
+  arfid_dat, 
+  file = paste0("../data/ARFID_data_dem_PARDI_anx_cleaned", date, ".rds"))
+```
+
+
+
