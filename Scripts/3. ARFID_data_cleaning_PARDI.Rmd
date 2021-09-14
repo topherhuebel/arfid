@@ -1,0 +1,930 @@
+---
+title: 'Data cleaning 2: PARDI'
+author: "Rosie Watts"
+date: "24/07/2021"
+output: word_document
+---
+
+
+#Set up R Markdown
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Clear Global Environment 
+```{r clear global environment}
+rm(list = ls(all.names = TRUE)) 
+```
+
+Set current date 
+```{r current date}
+date <- Sys.Date()
+```
+
+Install necessary packages
+```{r install packages}
+#install.packages("summarytools")
+#install.packages("zscorer")
+#install.packages("tidyverse")
+#install.packages("childsds")
+```
+
++++CH: In general it's good to only load the packages that you really need to avoid conflicts between the packages
+
+Load necessary packages 
+```{r load packages}
+library(xlsx)
+library(summarytools)
+library(zscorer)
+library(gt)
+library(childsds)
+library(tidyverse)
+```
+
+Read in merged dataset
+```{r read in merged data}
+arfid_dat <- readRDS(file = "../data/ARFID_data_dem_cleaned2021-08-18.rds")
+```
+
+#Inspect data
+```{r structure}
+arfid_dat %>% 
+  str()
+```
+
+
+#PARDI Data Cleaning
+
+Weight, Height and BMI
+
+#Height: 
+Inspect height reporting 
+```{r inspect height variables}
+arfid_dat %>% 
+  select(pardi.parent.pre.measurement_select_preferred_unit_height, 
+         pardi.parent.pre.what_is_your_childs_height_unc,     #metres
+         pardi.parent.pre.what_is_your_childs_height.1_unc,   #cm
+         pardi.parent.pre.what_is_your_childs_height.2_unc,   #foot
+         pardi.parent.pre.what_is_your_childs_height.3_unc    #inches
+  )
+```
+## Height in metres
+
+Weight is set up to be metres + cms
+
+I manually checked height and some had entered in metres and cms 
+E.g., 1 metres, 47 cms, 
+Others had entered in both metres and cms 
+E.g., 1.47metres, 147cms
+
+Need to set one reporting (m or cm) to 0 - 
+so that metres and cms can be added to give patient's height. 
+
+I manually checked each entry to make sure I could recode to 0 and it wouldn't 
+effect any other reporting
+
+Check frequencies
++++CH: I have moved the checking here to its own chunk
+```{r height in metres checking}
+arfid_dat %>% 
+  freq(pardi.parent.pre.what_is_your_childs_height_unc)
+```
+
+
+Recode height in metres, remove characters and make variable numeric
+```{r recode height in metres}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.what_is_your_childs_height_m_unc = 
+           recode(pardi.parent.pre.what_is_your_childs_height_unc, 
+                  '1m' = "1",
+                  '1.09m' = "1.09",
+                  'N/A' = "0",       #entered full height in cm  
+                  '?' = "0",         #entered full height in cm
+                  'will come back' = NA_character_) %>%    
+  as.numeric())
+
+arfid_dat %>% 
+  freq(pardi.parent.pre.what_is_your_childs_height_m_unc)
+```
+
+## Height in centremetres 
+
+Recode cm and convert to numeric metres 
+Manually checked each entry
+```{r height in cm checking}
+arfid_dat %>% 
+  freq(pardi.parent.pre.what_is_your_childs_height.1_unc)
+```
+
+Recode to 0 - so that they can be added to metres to give full height
+```{r recode cm and convert to metres}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.what_is_your_childs_height_cm_unc = 
+           recode(pardi.parent.pre.what_is_your_childs_height.1_unc, 
+                  '109cm' = "0",  #entered full height in metres
+                  '62cm' = "62",
+                  '138cm' = "138", #0 in metres
+                  '128cm' = "0",  #entered full height in metres
+                  '165' = "0",    #entered full height in metres
+                  '159' = "0",    #entered full height in metres
+                  '110' = "0",    #entered full height in metres
+                  '127' = "0",    #entered full height in metres
+                  '140' = "0",    #entered full height in metres
+                  '128' = "0",    #entered full height in metres 
+                  '158' = "0",    #entered full height in metres
+                  '94cm' = "0",   #entered full height in metres
+                  'will come back' = NA_character_, 
+                  'N/A' = NA_character_) %>% 
+           as.numeric())
+
+#Divide by 100 to convert to metres (to add to metres to give full weight)
+
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.what_is_your_childs_height_cm_m_unc =
+           (pardi.parent.pre.what_is_your_childs_height_cm_unc/100))
+
+#Check frequency
+arfid_dat %>% 
+  freq(pardi.parent.pre.what_is_your_childs_height_cm_m_unc)
+```
+
++++CH: There are two participants 1.38 and 1.46 that have entered their whole height in cms. How are you handling those?
++++RW: 1.38 had a '?' in metres column which was recoded to 0
++++RW: 1.46 had 'N/A' in metres column which was also recoded to 0
+
+
++++CH: The one who has entered a 2 and is now 0.02; are we sure they mean 2 centimetres? Just double checking
++++RW: I did not check this with the clinicians, but 1.02 metres is an average height for a 4.5 year old
++++CH: You could double check this to see if the BMI z score is fine?
+
+```{r check height 1.02m}
+arfid_dat %>% 
+  select(ARFID_ID, 
+         child.parent.pre.age_yrs,
+         pardi.parent.pre.what_is_your_childs_height_m_unc,
+         pardi.parent.pre.what_is_your_childs_height_cm_m_unc
+         ) %>% 
+  filter(pardi.parent.pre.what_is_your_childs_height_cm_m_unc == 0.02)
+```
+
+
+## Height in feet (ft)
+
+```{r height in feet checking}
+arfid_dat %>% 
+  freq(pardi.parent.pre.what_is_your_childs_height.2_unc)
+```
+
+Recode height in feet and inches and convert to numeric
+```{r recode height in feet}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.what_is_your_childs_height_ft_unc = 
+           recode(pardi.parent.pre.what_is_your_childs_height.2_unc, 
+                  '6 foot' = "6",
+                  '5’' = "5",
+                  'Not sure' = NA_character_) %>%    
+  as.numeric())
+
+arfid_dat %>% 
+  freq(pardi.parent.pre.what_is_your_childs_height_ft_unc)
+```
+
+## Height in inches
+
+```{r height in inches checking}
+arfid_dat %>% 
+  freq(pardi.parent.pre.what_is_your_childs_height.3_unc)
+```
+
+Recode height in inches and covert to numeric
+```{r recode height in inches}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.what_is_your_childs_height_inches_unc = 
+           recode(pardi.parent.pre.what_is_your_childs_height.3_unc, 
+                  'Not sure' = NA_character_) %>%    
+  as.numeric())
+
+arfid_dat %>% 
+  freq(pardi.parent.pre.what_is_your_childs_height_inches_unc)
+```
+
+
+## Convert all height data to metres 
+
++++CH: see my comment about !is.na()
++++RW: when I use !is.na() it makes the variable NA? 
+I adapted the current script from yours and Helena's BMI script in the Ilovedata github which used is.na?  
+```{r convert height to m}
+arfid_dat$pardi.parent.pre.what_is_your_childs_height_metres_unc <- NA
+
+
+arfid_dat <- arfid_dat %>%
+  mutate(
+      # Convert feet and inches to metres
+    pardi.parent.pre.what_is_your_childs_height_metres_unc =
+      if_else(
+        condition = 
+          is.na(pardi.parent.pre.what_is_your_childs_height_metres_unc), 
+        # +++CH: here I would work with !is.na()
+        true = 
+          #convert ft and inches to height in metres
+          (pardi.parent.pre.what_is_your_childs_height_ft_unc*0.3048) + 
+          (pardi.parent.pre.what_is_your_childs_height_inches_unc*0.0254), 
+        false = NA_real_,
+        missing = NA_real_
+        ),
+         
+         #Add metres and cm to give height in metres
+         pardi.parent.pre.what_is_your_childs_height_metres_unc = 
+          if_else(condition = is.na(pardi.parent.pre.what_is_your_childs_height_metres_unc),
+                          true = (pardi.parent.pre.what_is_your_childs_height_m_unc +
+                                    pardi.parent.pre.what_is_your_childs_height_cm_m_unc),
+                          false = pardi.parent.pre.what_is_your_childs_height_metres_unc,
+                          missing = NA_real_
+                          ))
+
+arfid_dat %>% 
+  descr(pardi.parent.pre.what_is_your_childs_height_metres_unc) 
+```
+
+Clean weight in metres
+
++++CH: save this min max values in their own variables
+```{r remove implausible values}
+arfid_dat <- arfid_dat %>% 
+  mutate(
+    pardi.parent.pre.what_is_your_childs_height_metres =  
+      case_when(
+        pardi.parent.pre.what_is_your_childs_height_metres_unc > .50 &
+          pardi.parent.pre.what_is_your_childs_height_metres_unc < 3.00
+        ~ pardi.parent.pre.what_is_your_childs_height_metres_unc
+        )
+         )
+
+arfid_dat %>% 
+  descr(pardi.parent.pre.what_is_your_childs_height_metres)
+```
+
+```{r}
+arfid_dat %>% 
+  freq(pardi.parent.pre.what_is_your_childs_height_metres)
+```
+
++++CH: How many implausible values do you have? 
++++RW: This removed 1 value (7 metres)
++++CH: What may have gone wrong with the implausible values?
++++RW: Reporting error - entered 600 cms (may have meant 60cms = 1.60m)
+
+
+Create a height variable in centimetres for z-scorer package
+```{r height in cms}
+arfid_dat <- arfid_dat %>%
+  mutate(pardi.parent.pre.what_is_your_childs_height_cm = 
+           pardi.parent.pre.what_is_your_childs_height_metres*100)
+
+arfid_dat %>% 
+  descr(pardi.parent.pre.what_is_your_childs_height_cm)
+```
+
+
+# Weight: 
+
+Recode: 'Please select your preferred unit of measurement for upcoming weight-related questions'
+to the corresponding measurement options (data dictionary)
+```{r preferred weight measurement}
+arfid_dat %>%
+  select(
+    pardi.parent.pre.measurement_select_preferred_unit_weight, 
+    pardi.parent.pre.what_is_your_childs_weight_unc,      #lbs
+    pardi.parent.pre.what_is_your_childs_weight.1_unc,    #kg
+    pardi.parent.pre.what_is_your_childs_weight.2_unc,    #stone &
+    pardi.parent.pre.what_is_your_childs_weight.3_unc    #lbs
+    )
+```
+
+## Weight in pounds
+
+Check weight in pounds
+```{r weight in lbs checking}
+arfid_dat %>% 
+  freq(pardi.parent.pre.what_is_your_childs_weight_unc)
+```
+
+Filter age and check weight in lbs is feasible
+```{r age and weight in pounds}
+arfid_dat %>% 
+  select(ARFID_ID, 
+         child.parent.pre.age_yrs_dec_unc,
+         pardi.parent.pre.what_is_your_childs_weight_unc) %>% 
+  filter(pardi.parent.pre.what_is_your_childs_weight_unc == "5 stone11" | 
+         pardi.parent.pre.what_is_your_childs_weight_unc == "67" |
+         pardi.parent.pre.what_is_your_childs_weight_unc == "76.31")
+```
+
++++CH: I don't understand what you are doing here
++++RW: Recode height to pounds as it is in the lbs column 
+weight in stone * 14 = weight in lbs
+5.11 * 14 = 71.54
+```{r recode weight in lbs}
+arfid_dat <- arfid_dat %>% 
+  mutate(
+    pardi.parent.pre.what_is_your_childs_weight_lbs_unc = 
+      recode(
+        pardi.parent.pre.what_is_your_childs_weight_unc,
+        '5 stone11' = "71.54"
+        ) %>% 
+           as.numeric()
+    )
+         
+arfid_dat %>% 
+  freq(pardi.parent.pre.what_is_your_childs_weight_lbs_unc)
+```
+
+## Weight in kg
+
+```{r weight in kg checking}
+arfid_dat %>% 
+  freq(pardi.parent.pre.what_is_your_childs_weight.1_unc)
+```
+
+
+Recode weight in kg and make numeric
+```{r recode weight in kg}
+arfid_dat <- arfid_dat %>% 
+  mutate(
+    pardi.parent.pre.what_is_your_childs_weight_kg_unc = 
+      recode(pardi.parent.pre.what_is_your_childs_weight.1_unc, 
+             '15.33kg' = "15.33",  
+             '15.400kg' = "15.4",
+             '31.2 kg' = "31.2",
+             'will come back' = NA_character_ 
+                  ) %>% 
+           as.numeric()
+    )
+
+arfid_dat %>% 
+  freq(pardi.parent.pre.what_is_your_childs_weight_kg_unc)
+```
+
+Check weight in stone and pounds
+```{r check weight in stone and lbs}
+arfid_dat %>% 
+  select(
+    pardi.parent.pre.what_is_your_childs_weight.2_unc, 
+     pardi.parent.pre.what_is_your_childs_weight.3_unc
+    ) %>% 
+  freq()
+```
+No cleaning needed. 
+
+
+##Convert all weight reportings to kg
++++CH: change to !is.na() 
+++RW: this sets all variables to NA? 
+```{r convert weight to kg}
+arfid_dat$pardi.parent.pre.what_is_your_childs_weight_kg_merged <- NA
+
+#convert weight in stone and lbs to kg
+
+arfid_dat <- arfid_dat %>%
+  mutate(pardi.parent.pre.what_is_your_childs_weight_kg_merged = 
+           if_else(condition = is.na(pardi.parent.pre.what_is_your_childs_weight_kg_merged),
+                   
+                   #Covert stone and lbs to kg
+                   true = (pardi.parent.pre.what_is_your_childs_weight.2_unc*6.35029) +
+                     (pardi.parent.pre.what_is_your_childs_weight.3_unc*0.453592),
+                   false = NA_real_, 
+                   missing = NA_real_), 
+         
+         #Convert lbs to kg
+         pardi.parent.pre.what_is_your_childs_weight_kg_merged = 
+           if_else(condition = is.na(pardi.parent.pre.what_is_your_childs_weight_kg_merged),
+                   true = (pardi.parent.pre.what_is_your_childs_weight_lbs_unc*0.453592),
+                   false = NA_real_, 
+                   missing = NA_real_), 
+         
+         #kg
+         pardi.parent.pre.what_is_your_childs_weight_kg_merged = 
+           if_else(condition = is.na(pardi.parent.pre.what_is_your_childs_weight_kg_merged), 
+                          true = pardi.parent.pre.what_is_your_childs_weight_kg_unc, 
+                          false = pardi.parent.pre.what_is_your_childs_weight_kg_merged, 
+                          missing = NA_real_
+                   ))
+
+arfid_dat %>% 
+  descr(pardi.parent.pre.what_is_your_childs_weight_kg_merged)
+```
+
+
+## Clean weight in kg 
+Need to consider that this is a specialist eating disorder clinic and weight may be higher and/or lower than the average population. Discussion with ARFID clinical team about plausible weights in the ARFID outpatient clinic. 
+
+Filter ARFID ID of patient with weight of 140kg and write as excel. 
+Check this value with ARFID clinical team at SLaM
+
+```{r filter and write excel - weight}
+weight <- arfid_dat %>% 
+  select(ARFID_ID, 
+         pardi.parent.pre.what_is_your_childs_weight_kg_merged) %>% 
+  filter(pardi.parent.pre.what_is_your_childs_weight_kg_merged == 140
+         )
+
+write.xlsx(
+  weight,
+  file = paste0("ARFID_IDs_weight", date, ".xlsx"),
+  sheetName = "Sheet1",
+  col.names = TRUE,
+  row.names = TRUE,
+  append = FALSE,
+  showNA = TRUE,
+  password = NULL
+)
+```
+
+
++++RW: ARFID clinical team reported that this patient's weight was in fact 165kg, should I edit this?
++++CH: Yes, please, correct the value
+
+```{r Updated weight from clinician}
+arfid_dat <- arfid_dat %>%
+  mutate(pardi.parent.pre.what_is_your_childs_weight_kg = 
+           if_else(
+             ARFID_ID == "AR21036", 
+             true = 165, 
+             false = pardi.parent.pre.what_is_your_childs_weight_kg_merged, 
+             missing = NA_real_
+             ))
+```
+
+Check this worked: 
+```{r check this worked}
+arfid_dat %>% 
+  select(ARFID_ID, 
+         pardi.parent.pre.what_is_your_childs_weight_kg) %>% 
+  filter(ARFID_ID == "AR21036"
+         )
+```
+This worked - changed patient ARFID_ID == "AR21036" from 140kg to 165kg. 
+
+Check descriptive statistics 
+```{r weight in kg descriptive}
+arfid_dat %>% 
+  freq(pardi.parent.pre.what_is_your_childs_weight_kg)
+```
+
+No more cleaning for weight needed. 
+
+
+# Create BMI variable
+Formula = kg/m2
+```{r create BMI}
+arfid_dat$pardi.parent.pre.current_bmi_child <- NA
+
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.current_bmi_child = 
+  if_else(condition = is.na(pardi.parent.pre.current_bmi_child), 
+         true = pardi.parent.pre.what_is_your_childs_weight_kg/
+           pardi.parent.pre.what_is_your_childs_height_metres^2, 
+         false = NA_real_,
+         missing = NA_real_))
+
+arfid_dat %>% 
+  select(ARFID_ID,
+         child.parent.pre.age_yrs_dec_unc, 
+         pardi.parent.pre.current_bmi_child) 
+```
+
+## BMI z-score based on UK90 Growth reference data
+
+For this dissertation project BMI for age z-scores will be computed using the UK90 growth data as it is a UK sample.
+
+For children and adolescents, BMI z-scores or percentiles should be adjusted for age and sex 
+And compared against growth data from a reference population
+
+https://www.rcpch.ac.uk/resources/uk-who-growth-charts-2-18-years
+https://khub.net/documents/31798783/32039025/A+simple+guide+to+classifying+body+mass+index+in+children/ced23256-6f8d-43c7-9f44-222e2beebf97?version=1.0
+https://www.monicagerber.com/post/roundup-of-growth-chart-packages/
+
+BMI for age z-score based on UK90 Growth reference data
+
+```{r BMI for age sds - UK}
+arfid_dat <- arfid_dat %>% 
+  mutate(
+    pardi.parent.pre.current_bmi_age_sds =
+  sds(pardi.parent.pre.current_bmi_child, 
+      age = child.parent.pre.age_yrs,
+      sex = child.parent.pre.biological_sex_of_your_child_at_birth_binary, 
+      male = "Male", 
+      female = "Female", 
+      ref = uk1990.ref, 
+      item = "bmi", 
+      type = "SDS" #for z-scores
+      )
+  )
+```
+
+BMI-for-age percentiles based on UK90 growth reference data
+```{r BMI-for-age percentile}
+arfid_dat <- arfid_dat %>% 
+  mutate(
+    pardi.parent.pre.bmi_percentile =
+  sds(pardi.parent.pre.current_bmi_child, 
+      age = child.parent.pre.age_yrs,
+      sex = child.parent.pre.biological_sex_of_your_child_at_birth_binary, 
+      male = "Male", 
+      female = "Female", 
+      ref = uk1990.ref, 
+      item = "bmi", 
+      type = "perc" #perc for percentile
+      )
+  )
+   
+```
+
+Check BMI-for-age z-scores and percentiles
+```{r check z-scores and percentiles}
+#And check output
+arfid_dat %>% 
+  select(ARFID_ID,
+         child.parent.pre.age_yrs,
+         child.parent.pre.biological_sex_of_your_child_at_birth_binary,
+         pardi.parent.pre.what_is_your_childs_height_metres,
+         pardi.parent.pre.what_is_your_childs_weight_kg,
+         pardi.parent.pre.current_bmi_child,
+         pardi.parent.pre.current_bmi_age_sds,
+         pardi.parent.pre.bmi_percentile
+         )
+```
+
+Z-score descriptive (report these in dissertation)
+```{r BMI z-score descriptives}
+arfid_dat %>% 
+  descr(pardi.parent.pre.current_bmi_age_sds)
+```
+The sample's mean BMI-for-age z-score is -1.23
+
+
+
+##Diagnostic Criteria - Binary Variables 
+Abscence (0) or presence (1) of the diagnostic criteria
+
+Min and max scale 
+```{r PARDI diagnostic criteria min and max scale}
+pardi.dx.min.scale = 0
+pardi.dx.max.scale = 1
+```
+
+diagnostic criteria vector
+```{r PARDI diagnostic criteria vector}
+pardi_diagnostic_criteria <- c(
+  "pardi.parent.pre.pace_difficulty_gaining_difficulty_numeric_unc", 
+    #failure to gain weight
+    "pardi.parent.pre.child_eating_habits_led_numeric_unc", 
+    #child has lost weight
+    "pardi.parent.pre.health_professional_expected_told_numeric_unc", 
+    #not growing as expected
+    "pardi.parent.pre.health_professional_eating_habits_numeric_unc", 
+    #nutritional defiency
+    "pardi.parent.pre.nutrition_past_month_child_numeric_unc", 
+    #nutritional oral supplement
+    "pardi.parent.pre.gain_weight_child_maintain_numeric_unc", 
+    #weight oral supplement
+    "pardi.parent.pre.receiving_tube_feeding_child_numeric_unc",  
+    #tube feeding
+    "pardi.parent.pre.college_day_home_work_numeric_unc"
+    #psychosocial impairment
+  )
+
+pardi_diagnostic_criteria
+```
+
+Clean diagnostic criteria variables
+```{r clean diagnostic criteria variables}
+arfid_dat <- arfid_dat %>%
+   mutate(
+     across(all_of(pardi_diagnostic_criteria),
+            .fns = list(clean = ~case_when(
+              . == -77 | . == -88 | . == -99 ~ .,
+              . < pardi.dx.min.scale | . > pardi.dx.max.scale ~ NA_real_, 
+              TRUE ~ .)))) %>%
+   rename_at(
+     vars(contains( "_unc_clean")),
+     list(~paste0(gsub("_unc_clean", "", .))))
+```
+
+
+
+Inspect the PARDI items for diagnostic criteria
+```{r inspect PARDI diagnostic criteria items}
+arfid_dat %>%
+  select(
+    "pardi.parent.pre.pace_difficulty_gaining_difficulty_numeric", 
+    #failure to gain weight
+    "pardi.parent.pre.child_eating_habits_led_numeric", 
+    #child has lost weight
+    "pardi.parent.pre.health_professional_expected_told_numeric", 
+    #not growing as expected
+    "pardi.parent.pre.health_professional_eating_habits_numeric", 
+    #nutritional defiency
+    "pardi.parent.pre.nutrition_past_month_child_numeric", 
+    #nutritional oral supplement
+    "pardi.parent.pre.gain_weight_child_maintain_numeric", 
+    #weight oral supplement
+    "pardi.parent.pre.receiving_tube_feeding_child_numeric",  
+    #tube feeding
+    "pardi.parent.pre.college_day_home_work_numeric"
+    )  %>%    
+    #psychosocial impairment
+  freq()
+```
+cleaned versions numeric
+Need to create binary factor versions
+
+##Create factor variable
+
+###Failure to maintain weight
+Have your child's eating habits led to difficulty maintaining a sufficient weight or, if they are growing, difficulty gaining enough weight to keep pace with their growth?
+```{r difficulty maintaining weight binary variable}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.pace_difficulty_gaining_difficulty_binary = 
+           recode_factor(
+             pardi.parent.pre.pace_difficulty_gaining_difficulty_numeric, 
+             `0` = "No difficulty maintaining weight",
+             `1` = "Difficulty maintaining weight"))
+
+arfid_dat %>% 
+  freq(pardi.parent.pre.pace_difficulty_gaining_difficulty_binary)
+```
+
+##Failure to grow
+```{r failure to grow binary variable}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.health_professional_expected_told_binary = 
+           recode_factor(
+             pardi.parent.pre.health_professional_expected_told_numeric, 
+             `0` = "No slow growth",
+             `1` = "Slow growth"))
+
+
+arfid_dat %>% 
+  freq(pardi.parent.pre.health_professional_expected_told_binary)
+```
+
+
+##Weight loss 
+Have your child's eating habits led to them losing weight ?
+```{r child has lost weight binary variable}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.child_eating_habits_led_binary = 
+           recode_factor(pardi.parent.pre.child_eating_habits_led_numeric, 
+             `0` = "No weight loss",
+             `1` = "Child lost weight"))
+
+
+arfid_dat %>% 
+  freq(pardi.parent.pre.child_eating_habits_led_binary)
+```
+
+##Nutritional deficiency
+Over the past month, has any health professional said that your child has a nutritional deficiency due to their eating habits ?
+```{r nutritional deficiency binary variable}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.health_professional_eating_habits_binary = 
+           recode_factor(pardi.parent.pre.health_professional_eating_habits_numeric, 
+             `0` = "No nutritional deficiency",
+             `1` = "Nutritional deficiency"))
+
+
+arfid_dat %>% 
+  freq(pardi.parent.pre.health_professional_eating_habits_binary)
+
+```
+
+##Dependence on enteral feeding or oral supplements for weight or nutrition
+To create a binary variable for diagnostic criteria A3 combine information from 3 items: 
+1. oral supplements for nutrition 
+2. oral supplements for weight 
+3. enteral feeding
+```{r enteral feeding/oral supplement binary numeric}
+arfid_dat <- arfid_dat %>%
+  mutate(pardi.parent.pre.enteral_feeding_oral_supplement_binary_numeric =
+           if_else(condition = 
+                     pardi.parent.pre.nutrition_past_month_child_numeric == 1 |
+                     pardi.parent.pre.gain_weight_child_maintain_numeric == 1 |
+                     pardi.parent.pre.receiving_tube_feeding_child_numeric == 1,
+                   true = 1,
+                   false = 0,
+                   missing = NA_real_))
+
+arfid_dat %>% 
+  freq(pardi.parent.pre.enteral_feeding_oral_supplement_binary_numeric)
+```
+
+recode as factor: 
+```{r enteral feeding/oral supplement binary factor}
+arfid_dat <- arfid_dat %>%
+  mutate(pardi.parent.pre.enteral_feeding_oral_supplement_binary = 
+           recode_factor(pardi.parent.pre.enteral_feeding_oral_supplement_binary_numeric, 
+                         `0` = "No enteral feeding/oral supplements", 
+                         `1` = "Enteral feeding or oral supplements"))
+
+arfid_dat %>% 
+  freq(pardi.parent.pre.enteral_feeding_oral_supplement_binary)
+```
+
+
+Psychosocial Impairment
+```{r psychosocial impairment binary variable}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.college_day_home_work_binary = 
+           recode_factor(pardi.parent.pre.college_day_home_work_numeric, 
+             `0` = "No psychosocial impairment",
+             `1` = "Psychosocial impairment"))
+  
+
+arfid_dat %>%
+  freq(pardi.parent.pre.college_day_home_work_binary)
+```
+
+
+## PARDI scale: 
+11 items on a scale of 0 - 6. 
+
+min and max scale
+```{r PARDI min and max scale}
+pardi.min.scale = 0
+pardi.max.scale = 6
+```
+
+PARDI scale vector
+```{r PARDI vector}
+pardi_parent_pre_numeric <- c(
+  "pardi.parent.pre.interactions_people_eating_difficulties_numeric_unc",
+  "pardi.parent.pre.difficult_social_situations_social_numeric_unc", 
+  "pardi.parent.pre.taste_variation_sensitive_past_numeric_unc", 
+  "pardi.parent.pre.consistency_sensitive_past_month_numeric_unc", 
+  "pardi.parent.pre.appearance_sensitive_past_month_numeric_unc", 
+  "pardi.parent.pre.child_forgotten_forgotten_make_numeric_unc", 
+  "pardi.parent.pre.child_appeared_lack_enjoyment_numeric_unc", 
+  "pardi.parent.pre.stopped_eating_early_finished_numeric_unc", 
+  "pardi.parent.pre.affected_choking_pain_type_numeric_unc", 
+  "pardi.parent.pre.child_avoided_eating_situations_numeric_unc",
+  "pardi.parent.pre.child_expressed_panic_physical_numeric_unc")
+
+pardi_parent_pre_numeric
+```
+
+Clean Pardi scale 0 - 6
+```{r clean PARDI scale}
+arfid_dat <- arfid_dat %>%
+   mutate(
+     across(all_of(pardi_parent_pre_numeric),
+            .fns = list(clean = ~case_when(
+              . == -77 | . == -88 | . == -99 ~ .,
+              . < pardi.min.scale | . > pardi.max.scale ~ NA_real_, 
+              TRUE ~ .)))) %>%
+   rename_at(
+     vars(contains( "_unc_clean")),
+     list(~paste0(gsub("_unc_clean", "", .))))
+```
+
+
+Create factor variables of each PARDI item which is on a scale of 0 - 6 for 
+the correlation matrix and Likert plots of PARDI endorsement
+```{r PARDI items factor}
+
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.interactions_people_eating_difficulties = 
+            as.factor(pardi.parent.pre.interactions_people_eating_difficulties_numeric))
+
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.difficult_social_situations_social = 
+            as.factor(pardi.parent.pre.difficult_social_situations_social_numeric))
+
+
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.taste_variation_sensitive_past = 
+            as.factor(pardi.parent.pre.taste_variation_sensitive_past_numeric))
+
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.consistency_sensitive_past_month = 
+            as.factor(pardi.parent.pre.consistency_sensitive_past_month_numeric))
+
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.appearance_sensitive_past_month = 
+            as.factor(pardi.parent.pre.appearance_sensitive_past_month_numeric))
+
+
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.child_appeared_lack_enjoyment = 
+            as.factor(pardi.parent.pre.child_appeared_lack_enjoyment_numeric))
+
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.child_forgotten_forgotten_make = 
+            as.factor(pardi.parent.pre.child_forgotten_forgotten_make_numeric))
+
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.stopped_eating_early_finished = 
+            as.factor(pardi.parent.pre.stopped_eating_early_finished_numeric))
+         
+ 
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.affected_choking_pain_type = 
+            as.factor(pardi.parent.pre.affected_choking_pain_type_numeric))
+
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.child_avoided_eating_situations = 
+            as.factor(pardi.parent.pre.child_avoided_eating_situations_numeric))
+
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.child_expressed_panic_physical = 
+            as.factor(pardi.parent.pre.child_expressed_panic_physical_numeric))
+
+```
+
+
+# PARDI sum scores for: 
+## Severity of impact
+```{r psychosocial impairment severity}
+arfid_dat$pardi.psychosocial_impairment_severity_numeric <- NA
+
+arfid_dat$pardi.psychosocial_impairment_severity_numeric <- 
+  rowSums(arfid_dat[c(
+    "pardi.parent.pre.interactions_people_eating_difficulties_numeric",
+    "pardi.parent.pre.difficult_social_situations_social_numeric")])
+
+arfid_dat %>%
+  descr(pardi.psychosocial_impairment_severity_numeric)
+```
+
+
+# PARDI profiles 
+
+## Sensory avoidance of food
+```{r sensory sensitivities}
+arfid_dat$pardi.sensory_sensitivities_numeric <- NA
+
+arfid_dat$pardi.sensory_sensitivities_numeric <- 
+  rowSums(arfid_dat[c(
+    "pardi.parent.pre.taste_variation_sensitive_past_numeric", 
+    "pardi.parent.pre.consistency_sensitive_past_month_numeric",
+    "pardi.parent.pre.appearance_sensitive_past_month_numeric")])
+
+arfid_dat %>% 
+  descr(pardi.sensory_sensitivities_numeric)
+```
+
+
+## Lack of enjoyment in eating and food
+```{r lack of enjoyment}
+arfid_dat$pardi.lack_of_interest_numeric <- NA
+
+arfid_dat$pardi.lack_of_interest_numeric <- 
+  rowSums(arfid_dat[c(
+    "pardi.parent.pre.child_forgotten_forgotten_make_numeric", 
+    "pardi.parent.pre.child_appeared_lack_enjoyment_numeric", 
+    "pardi.parent.pre.stopped_eating_early_finished_numeric")])
+
+arfid_dat %>%
+  descr(pardi.lack_of_interest_numeric)
+```
+
+
+## Fear of aversive consequences of eating
+```{r fear of aversive consequences}
+arfid_dat$pardi.fear_of_aversive_consequences_numeric <- NA
+
+arfid_dat$pardi.fear_of_aversive_consequences_numeric <- 
+  rowSums(arfid_dat[c(
+    "pardi.parent.pre.affected_choking_pain_type_numeric", 
+    "pardi.parent.pre.child_avoided_eating_situations_numeric",
+    "pardi.parent.pre.child_expressed_panic_physical_numeric")])
+
+arfid_dat %>%
+  descr(pardi.fear_of_aversive_consequences_numeric) 
+```
+
+```{r}
+arfid_dat %>% 
+  colnames()
+```
+
+
+#Save merged dataset with cleaned demographic and PARDI data:
+ARFID and ASD diagnosis 
+Patient sex and age
+PARDI height and weight 
+PARDI diagnostic criteria 
+PARDI impairment severity 
+PARDI profiles
+
+```{r save data as rds}
+saveRDS(
+  arfid_dat, 
+  file = paste0("../data/ARFID_data_dem_PARDI_cleaned", date, ".rds")
+)
+```
+
+
+
