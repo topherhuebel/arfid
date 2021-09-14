@@ -1,0 +1,1202 @@
+---
+title: "ARFID and ASD"
+author: "Rosie Watts"
+date: "12/07/2021"
+output:
+  word_document: default
+  html_document: default
+---
+
+#Set up R Markdown
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, out.width='100%', out.height='100%')
+```
+
+Clear Global Environment 
+```{r clear global environment}
+rm(list = ls(all.names = TRUE)) 
+```
+
+Set current date 
+```{r current date}
+date <- Sys.Date()
+```
+
+Install necessary packages
+```{r install packages}
+#install.packages("knitr")
+#install.packages("summarytools")
+#install.packages("skimr")
+#install.packages("psych")
+#install.packages("gt")
+#install.packages("sjPlot")
+#install.packages("sjmisc")
+#install.packages("ggplot2")
+#install.packages("dplyr")
+#install.packages("gtsummary")
+#install.packages("rcompanion")
+#install.packages("patchwork")
+#install.packages("car")
+#install.packages("ggfortify")
+#install.packages("broom")
+#install.packages("MASS")
+#install.packages("pscl")
+#install.packaes("tidyverse")
+```
+
+
+Load necessary packages 
+```{r load packages}
+library(knitr)
+library(skimr)
+library(summarytools)
+library(psych)
+library(sjPlot)
+library(ggplot2)
+library(likert)
+library(gtsummary)
+library(rcompanion)
+library(patchwork)
+library(car)
+library(ggfortify)
+library(data.table)
+library(broom) 
+library(boot)
+library(pscl)
+library(tidyverse)
+```
+
+
+
+Read in data
+```{r read in raw_data}
+arfid_dat <- readRDS(file = "../data/arfid_data_clean2021-08-18.rds")
+```
+
+#Inspect the dataset
+
+```{r skim}
+arfid_dat %>% 
+  skim()
+```
+
+ASD diagnoses are known to be more common in males, with females often being diagnosed at a later age. 
+
+Check sex distribution in the various ASD categories
+15 male and 15 female patients with ASD
+```{r sex dist in ASD dx}
+arfid_dat %>% 
+  filter(ASD_diagnosis == "ASD diagnosis") %>% 
+  freq(child.parent.pre.biological_sex_of_your_child_at_birth_binary)
+```
+
+13 males and 11 females with suspected ASD
+```{r sex dist in suspected ASD}
+arfid_dat %>% 
+  filter(ASD_diagnosis == "Suspected ASD") %>% 
+  freq(child.parent.pre.biological_sex_of_your_child_at_birth_binary)
+```
+
+31 males and 37 females with no comorbid ASD.
+```{r sex dist in No ASD dx}
+arfid_dat %>% 
+  filter(ASD_diagnosis == "No ASD diagnosis") %>% 
+  freq(child.parent.pre.biological_sex_of_your_child_at_birth_binary)
+```
+
+There is an even distribution of males and females in each ASD diagnosis category
+
++++CH: This could have been a crosstable
+
+```{r}
+arfid_dat %>%
+  count(
+    ASD_diagnosis,
+    child.parent.pre.biological_sex_of_your_child_at_birth_binary
+    )
+```
+
+
+
+#Check the distribution of the outcome variable
+Check the distribution of each outcome variable for the regressions, plotted by ASD diagnosis
+
+Sensory sensitivities
+```{r sensory distribution histogram}
+h1.asd <- arfid_dat %>% 
+  drop_na(ASD_diagnosis) %>% 
+  ggplot(aes(x = pardi.sensory_sensitivities_numeric, 
+             fill = ASD_diagnosis)) +
+  geom_histogram(position = position_dodge(preserve = "single")) + 
+  labs(x = "PARDI-AR-Q score", 
+       y = "Count", 
+       fill = "ASD diagnosis") +
+  theme_minimal()
+
+h1.asd
+```
+The sensory sensitivities driver outcome variable has a negatively skewed distribution
+
+
+Lack of interest
+```{r interest distribution histogram}
+h2.asd <- arfid_dat %>% 
+  drop_na(ASD_diagnosis) %>% 
+  ggplot(aes(x = pardi.lack_of_interest_numeric, 
+             fill = ASD_diagnosis)) +
+  geom_histogram(position = position_dodge(preserve = "single")) + 
+  labs(x = "PARDI-AR-Q score", 
+       y = "Count", 
+       fill = "ASD diagnosis") +
+  theme_minimal()
+
+h2.asd
+```
+The lack of interest driver outcome variable has a negatively skewed distribution
+
+
+Fear of aversive consequences
+```{r fear distribution histogram}
+h3.asd <- arfid_dat %>% 
+  drop_na(ASD_diagnosis) %>% 
+  ggplot(aes(x = pardi.fear_of_aversive_consequences_numeric, 
+             fill = ASD_diagnosis)) +
+  geom_histogram(position = position_dodge(preserve = "single")) + 
+  labs(x = "PARDI-AR-Q score", 
+       y = "Count", 
+       fill = "ASD diagnosis") +
+  #scale_fill_manual(values=c("#66c2a5", 
+  #                           "#fc8d62", 
+  #                           "#8da0cb")
+  #                  ) +
+  theme_minimal()
+
+h3.asd
+```
+The fear of aversive consequences driver outcome score has a zero-inflated distribution. 
+
+
+The sensory sensitivity and lack of interest variables are negatively distributed. 
+The fear of aversive consequences variable has a zero-inflated distribution. 
+
+
+#Likert plot for endorsement of PARDI items (ASD)
+Grouped by comorbid ASD diagnosis (no = 0, suspected ASD= 1, ASD = 2)
+
+##ASD
+Filter patients who have an autism diagnosis and select variables to plot
+```{r filter by ASD dx and select variables}
+arfid_dat_likert_ASD <- arfid_dat %>% 
+  
+  filter(ASD_diagnosis ==
+           "ASD diagnosis") %>%
+  
+  select(
+    pardi.parent.pre.interactions_people_eating_difficulties,
+    pardi.parent.pre.difficult_social_situations_social,
+    pardi.parent.pre.taste_variation_sensitive_past,
+    pardi.parent.pre.consistency_sensitive_past_month,
+    pardi.parent.pre.appearance_sensitive_past_month,
+    pardi.parent.pre.child_forgotten_forgotten_make,
+    pardi.parent.pre.child_appeared_lack_enjoyment,
+    pardi.parent.pre.stopped_eating_early_finished,
+    pardi.parent.pre.affected_choking_pain_type,
+    pardi.parent.pre.child_avoided_eating_situations,
+    pardi.parent.pre.child_expressed_panic_physical) %>% 
+  
+    rename(
+    "Difficulties: interactions with others" =
+    pardi.parent.pre.interactions_people_eating_difficulties,
+    "Difficulty: social situations" =
+    pardi.parent.pre.difficult_social_situations_social,
+    "Sensory sensitivity: taste" =
+    pardi.parent.pre.taste_variation_sensitive_past,
+    "Sensory sensitivity: texture" =
+    pardi.parent.pre.consistency_sensitive_past_month,
+    "Sensory sensitivity: appearance" =
+    pardi.parent.pre.appearance_sensitive_past_month,
+    "Forgotten to eat" = 
+    pardi.parent.pre.child_forgotten_forgotten_make,
+    "Lacked enjoyment in food" = 
+    pardi.parent.pre.child_appeared_lack_enjoyment,
+    "Stopped eating early" = 
+    pardi.parent.pre.stopped_eating_early_finished,
+    "Afraid something bad might happen" = 
+    pardi.parent.pre.affected_choking_pain_type,
+    "Avoided eating due to such worries" = 
+    pardi.parent.pre.child_avoided_eating_situations,
+    "Physical feelings of panic and anxiety" = 
+    pardi.parent.pre.child_expressed_panic_physical)
+  
+
+arfid_dat_likert_ASD
+```
+
+Format Likert data
+```{r format ASD likert data}
+ASD_likert_data <- likert(arfid_dat_likert_ASD)
+```
+
+Plot with Likert plot using likert.bar.plot from the Likert package
+```{r ASD likert plot }
+ASD.likert.plot <- 
+  likert.bar.plot(ASD_likert_data,
+                  colors = 
+                  c("#fef0d9", 
+                    "#fdd49e", 
+                    "#fdbb84",
+                    "#fc8d59",
+                    "#ef6548",
+                    "#d7301f",
+                    "#990000"),
+                  plot.percent.neutral = FALSE,
+                  text.color = "black",
+                  text.size = 3,
+                  ordered = FALSE, 
+                  group.order = c(
+                    "Difficulties: interactions with others", 
+                    "Difficulty: social situations",
+                    "Sensory sensitivity: taste",
+                    "Sensory sensitivity: texture", 
+                    "Sensory sensitivity: appearance", 
+                    "Forgotten to eat", 
+                    "Lacked enjoyment in food", 
+                    "Stopped eating early", 
+                    "Afraid something bad might happen", 
+                    "Avoided eating due to such worries", 
+                    "Physical feelings of panic and anxiety")
+                  ) + 
+  labs(y = "Endorsement (%)", 
+       x = "PARDI-AR-Q item", 
+       title = "Comorbid ASD diagnosis", 
+       subtitle = "n = 28") +
+  theme_minimal() 
+
+ASD.likert.plot$layers[[1]]$geom_params$width = 0.7
+ASD.likert.plot$layers[[2]]$geom_params$width = 0.7
+ASD.likert.plot$layers[[3]]$geom_params$width = 0.7
+ASD.likert.plot$layers[[4]]$geom_params$width = 0.7
+ASD.likert.plot$layers[[5]]$geom_params$width = 0.7
+
+ASD.likert.plot
+```
+
+Check frequencies against the likert plots to ensure this worked! 
+```{r check frequencies}
+arfid_dat_likert_ASD %>% 
+  freq()
+```
+It worked - dropped category 3 from percentage report 
+Level 0, 1, 2 - % reported to the left, 
+Level 3 - percent dropped, 
+Level 4, 4, 6 - % reported to the right. 
+
+
+##No ASD diagnosis
+Filter patients who do not have an ASD diagnosis and select variables to plot
+```{r filter by no ASD dx and select variables}
+arfid_dat_likert_noASD <- arfid_dat %>% 
+  
+  filter(ASD_diagnosis ==
+           "No ASD diagnosis") %>%
+  
+  select(
+    pardi.parent.pre.interactions_people_eating_difficulties,
+    pardi.parent.pre.difficult_social_situations_social,
+    pardi.parent.pre.taste_variation_sensitive_past,
+    pardi.parent.pre.consistency_sensitive_past_month,
+    pardi.parent.pre.appearance_sensitive_past_month,
+    pardi.parent.pre.child_forgotten_forgotten_make,
+    pardi.parent.pre.child_appeared_lack_enjoyment,
+    pardi.parent.pre.stopped_eating_early_finished,
+    pardi.parent.pre.affected_choking_pain_type,
+    pardi.parent.pre.child_avoided_eating_situations,
+    pardi.parent.pre.child_expressed_panic_physical) %>% 
+  
+    rename(
+    "Difficulties: interactions with others" =
+    pardi.parent.pre.interactions_people_eating_difficulties,
+    "Difficulty: social situations" =
+    pardi.parent.pre.difficult_social_situations_social,
+    "Sensory sensitivity: taste" =
+    pardi.parent.pre.taste_variation_sensitive_past,
+    "Sensory sensitivity: texture" =
+    pardi.parent.pre.consistency_sensitive_past_month,
+    "Sensory sensitivity: appearance" =
+    pardi.parent.pre.appearance_sensitive_past_month,
+    "Forgotten to eat" = 
+    pardi.parent.pre.child_forgotten_forgotten_make,
+    "Lacked enjoyment in food" = 
+    pardi.parent.pre.child_appeared_lack_enjoyment,
+    "Stopped eating early" = 
+    pardi.parent.pre.stopped_eating_early_finished,
+    "Afraid something bad might happen" = 
+    pardi.parent.pre.affected_choking_pain_type,
+    "Avoided eating due to such worries" = 
+    pardi.parent.pre.child_avoided_eating_situations,
+    "Physical feelings of panic and anxiety" = 
+    pardi.parent.pre.child_expressed_panic_physical)
+  
+
+arfid_dat_likert_noASD
+```
+
+Format Likert data
+```{r format noASD likert data}
+noASD_likert_data <- likert(arfid_dat_likert_noASD)
+noASD_likert_data
+```
+
+Likert plot
+```{r noASD likert plot}
+noASD.likert.plot <- 
+  likert.bar.plot(noASD_likert_data, 
+                  colors = 
+                  c("#fef0d9", 
+                    "#fdd49e", 
+                    "#fdbb84",
+                    "#fc8d59",
+                    "#ef6548",
+                    "#d7301f",
+                    "#990000"),
+                  plot.percent.neutral = FALSE,
+                  text.color = "black",
+                  text.size = 3,
+                  ordered = FALSE, 
+                  group.order = c(
+                    "Difficulties: interactions with others", 
+                    "Difficulty: social situations",
+                    "Sensory sensitivity: taste",
+                    "Sensory sensitivity: texture", 
+                    "Sensory sensitivity: appearance", 
+                    "Forgotten to eat", 
+                    "Lacked enjoyment in food", 
+                    "Stopped eating early", 
+                    "Afraid something bad might happen", 
+                    "Avoided eating due to such worries", 
+                    "Physical feelings of panic and anxiety")
+                  ) + 
+  labs(y = "Endorsement (%)", 
+       x = "PARDI-AR-Q item", 
+       title = "No comorbid diagnosis of ASD", 
+       subtitle = "n = 49") +
+  theme_minimal() 
+
+#Format width of barchart 
+noASD.likert.plot$layers[[1]]$geom_params$width = 0.7
+noASD.likert.plot$layers[[2]]$geom_params$width = 0.7
+noASD.likert.plot$layers[[3]]$geom_params$width = 0.7
+noASD.likert.plot$layers[[4]]$geom_params$width = 0.7
+noASD.likert.plot$layers[[5]]$geom_params$width = 0.7
+
+
+noASD.likert.plot
+```
+
+
+##Suspected ASD
+Filter patients who have suspected ASD and select variables to plot
+```{r filter suspected ASD}
+arfid_dat_likert_sxASD <- arfid_dat %>% 
+  
+  filter(ASD_diagnosis ==
+           "Suspected ASD") %>%
+  
+  select(
+    pardi.parent.pre.interactions_people_eating_difficulties,
+    pardi.parent.pre.difficult_social_situations_social,
+    pardi.parent.pre.taste_variation_sensitive_past,
+    pardi.parent.pre.consistency_sensitive_past_month,
+    pardi.parent.pre.appearance_sensitive_past_month,
+    pardi.parent.pre.child_forgotten_forgotten_make,
+    pardi.parent.pre.child_appeared_lack_enjoyment,
+    pardi.parent.pre.stopped_eating_early_finished,
+    pardi.parent.pre.affected_choking_pain_type,
+    pardi.parent.pre.child_avoided_eating_situations,
+    pardi.parent.pre.child_expressed_panic_physical) %>% 
+  
+    rename(
+    "Difficulties: interactions with others" =
+    pardi.parent.pre.interactions_people_eating_difficulties,
+    "Difficulty: social situations" =
+    pardi.parent.pre.difficult_social_situations_social,
+    "Sensory sensitivity: taste" =
+    pardi.parent.pre.taste_variation_sensitive_past,
+    "Sensory sensitivity: texture" =
+    pardi.parent.pre.consistency_sensitive_past_month,
+    "Sensory sensitivity: appearance" =
+    pardi.parent.pre.appearance_sensitive_past_month,
+    "Forgotten to eat" = 
+    pardi.parent.pre.child_forgotten_forgotten_make,
+    "Lacked enjoyment in food" = 
+    pardi.parent.pre.child_appeared_lack_enjoyment,
+    "Stopped eating early" = 
+    pardi.parent.pre.stopped_eating_early_finished,
+    "Afraid something bad might happen" = 
+    pardi.parent.pre.affected_choking_pain_type,
+    "Avoided eating due to such worries" = 
+    pardi.parent.pre.child_avoided_eating_situations,
+    "Physical feelings of panic and anxiety" = 
+    pardi.parent.pre.child_expressed_panic_physical)
+  
+
+arfid_dat_likert_sxASD
+```
+
+Likert data
+```{r format sxASD likert data}
+sxASD_likert_data <- likert(arfid_dat_likert_sxASD)
+sxASD_likert_data
+```
+
+Likert plot
+```{r sxASD likert plot}
+sxASD.likert.plot <- 
+  likert.bar.plot(sxASD_likert_data, 
+                  colors = 
+                  c("#fef0d9", 
+                    "#fdd49e", 
+                    "#fdbb84",
+                    "#fc8d59",
+                    "#ef6548",
+                    "#d7301f",
+                    "#990000"),
+                  plot.percent.neutral = FALSE,
+                  text.color = "black",
+                  text.size = 3,
+                  ordered = FALSE, 
+                  group.order = c(
+                    "Difficulties: interactions with others", 
+                    "Difficulty: social situations",
+                    "Sensory sensitivity: taste",
+                    "Sensory sensitivity: texture", 
+                    "Sensory sensitivity: appearance", 
+                    "Forgotten to eat", 
+                    "Lacked enjoyment in food", 
+                    "Stopped eating early", 
+                    "Afraid something bad might happen", 
+                    "Avoided eating due to such worries", 
+                    "Physical feelings of panic and anxiety")
+                  ) + 
+  labs(y = "Endorsement (%)", 
+       x = "PARDI-AR-Q item", 
+       title = "Suspected ASD", 
+       subtitle = "n = 21") +
+  theme_minimal() 
+
+
+sxASD.likert.plot$layers[[1]]$geom_params$width = 0.7
+sxASD.likert.plot$layers[[2]]$geom_params$width = 0.7
+sxASD.likert.plot$layers[[3]]$geom_params$width = 0.7
+sxASD.likert.plot$layers[[4]]$geom_params$width = 0.7
+sxASD.likert.plot$layers[[5]]$geom_params$width = 0.7
+
+
+sxASD.likert.plot
+```
+
+Create a likert plot with legend at the bottom to use for dissertation
+```{r}
+legend <- 
+  likert.bar.plot(sxASD_likert_data, 
+                  colors = 
+                  c("#fef0d9", 
+                    "#fdd49e", 
+                    "#fdbb84",
+                    "#fc8d59",
+                    "#ef6548",
+                    "#d7301f",
+                    "#990000"),
+                  plot.percent.neutral = FALSE,
+                  text.color = "black",
+                  text.size = 3,
+                  ordered = FALSE, 
+                  legend.position = "bottom",
+                  group.order = c(
+                    "Difficulties: interactions with others", 
+                    "Difficulty: social situations",
+                    "Sensory sensitivity: taste",
+                    "Sensory sensitivity: texture", 
+                    "Sensory sensitivity: appearance", 
+                    "Forgotten to eat", 
+                    "Lacked enjoyment in food", 
+                    "Stopped eating early", 
+                    "Afraid something bad might happen", 
+                    "Avoided eating due to such worries", 
+                    "Physical feelings of panic and anxiety"
+                    )) + 
+  labs(y = "Endorsement (%)", 
+       x = "PARDI-AR-Q item", 
+       title = "Legend for cowplot"
+  )
+```
+
+
+##ASD, sx ASD and non-ASD
+
+Format with cowplot 
+```{r cowplot likert}
+legend <- cowplot::get_legend(legend)
+
+ASD_likert_cowplot <- 
+  cowplot::plot_grid(ASD.likert.plot + theme(legend.position="none"),
+                     noASD.likert.plot + theme(legend.position="none"), 
+                     sxASD.likert.plot + theme(legend.position="none"),
+                     legend,
+                     ncol = 1, 
+                     align = "v")
+
+ASD_likert_cowplot
+```
+
+
+Use ggplot to save likert plot formatted by cowplot:
+```{r ggsave likert cowplot}
+ggsave(
+  filename = paste0("likert_plot_ASD_cowplot", date, ".pdf"),
+  plot = ASD_likert_cowplot,
+  path = "../plots/",
+  device = "pdf",
+  scale = 1,
+  width = 7,
+  height = 14,
+  dpi = 300,
+  limitsize = FALSE,
+  bg = NULL
+  )
+```
+
+
+
+#Regressions 
+Three regressions will be computed to examine the effect of comorbid ASD on the PARDI profile scores, whilst controlling for the patient's age and sex 
+1. Sensory sensitivity profile (0 - 18)
+2. Lack of interest profile (0 - 18)
+3. Fear of aversive consequences profile (0 - 18)
+
+
+ASD binary = 
+`0` = "No ASD diagnosis",
+`1` = "Suspected ASD", 
+`2` = "ASD diagnosis
+
+```{r select variables}
+regression_asd_arfid_dat <- arfid_dat %>% 
+  select(pardi.sensory_sensitivities_numeric,
+         pardi.lack_of_interest_numeric, 
+         pardi.fear_of_aversive_consequences_numeric,
+         ASD_diagnosis,
+         child.parent.pre.biological_sex_of_your_child_at_birth_binary,
+         child.parent.pre.age_yrs) 
+```
+
+
+##Sensory sensitivity
+###Linear regression
+Run linear regression 
+However, due to the distribution of the outcome variable we will run and report negative bionomial regressions
+```{r sensory lm}
+m1 <- regression_asd_arfid_dat %>% 
+  lm(formula = pardi.sensory_sensitivities_numeric ~ 
+       ASD_diagnosis +
+       child.parent.pre.biological_sex_of_your_child_at_birth_binary + 
+       child.parent.pre.age_yrs)
+
+summary(m1)
+```
+
+Tidy table
+```{r sensory tidy table}
+sensory_table_asd <- m1 %>%
+  tidy() %>%
+  mutate(
+    Variable =
+  recode_factor(
+    term,
+    "ASD_diagnosisSuspected ASD" = "Suspected ASD",
+    "ASD_diagnosisASD diagnosis" = "Comorbid ASD diagnosis",
+    "child.parent.pre.biological_sex_of_your_child_at_birth_binaryFemale" = "Female",
+    "child.parent.pre.age_yrs" = "Age [years]"
+  )
+  ) %>%
+  select(
+    Variable,
+    Estimate = estimate,
+    SE = std.error,
+    t_value = statistic,
+    p_value = p.value
+  )
+
+kable(sensory_table_asd)
+```
+
+Box plot to visualise the relationship between sensory sensitivity and ASD diagnosis
+drop legend for later formatting 
+```{r sensory boxplot}
+g1.asd <- regression_asd_arfid_dat %>%
+  drop_na(ASD_diagnosis) %>%
+  drop_na(pardi.sensory_sensitivities_numeric) %>%
+  
+  ggplot(aes(x = ASD_diagnosis,
+             y = pardi.sensory_sensitivities_numeric, 
+             fill = ASD_diagnosis)) +
+  geom_boxplot(
+    show.legend = FALSE
+  ) + 
+  xlab("Comorbid ASD diagnosis") + 
+  ylab("PARDI-AR-Q score") + 
+  labs(fill = "Comorbid ASD diagnosis") + 
+  theme_minimal()
+
+g1.asd
+```
+
+Check assumptions 
+```{r multicollinearity}
+vif(m1)
+```
+
+```{r sensory diagnostic plots}
+plot(m1)
+autoplot(m1)
+```
+
+
+###Negative Binomial Regressions
+Due to the distribution of the outcome variable, negative binomial regressions will also be computed and the model compared with linear regression
+```{r sensory negative binomial regression}
+m1nb <- 
+  MASS::glm.nb(pardi.sensory_sensitivities_numeric ~ 
+           ASD_diagnosis +
+           child.parent.pre.biological_sex_of_your_child_at_birth_binary + 
+           child.parent.pre.age_yrs,
+           data = regression_asd_arfid_dat
+               )
+
+summary(m1nb)
+```
+
+Exponentiated output
+```{r sensory NB regression exponentiate output}
+m1nb$family$linkinv(coef(m1nb))
+```
+
+Exponentiated coefficient as a percentage
+```{r sensory percentage}
+round((m1nb$family$linkinv(coef(m1nb))-1)*100)
+```
+
+Pseudo r-squared 
+- use Nagelkerke (Cragg and Uhler) in the output regression summary table
+```{r sensory r2 nagelkerke}
+nagelkerke(m1nb)
+```
+
+Tidy table output
+I don't use these tables in the end (instead I use tab_model - at the end of the script)
+```{r sensory nb table}
+sensory_asd_tidy_nb <- m1nb %>% 
+  tidy(
+    conf.int = TRUE, 
+    expoentiate = TRUE
+    ) %>%
+  mutate(
+    Variable =
+  recode_factor(
+    term,
+    "ASD_diagnosisSuspected ASD" = "Suspected ASD",
+    "ASD_diagnosisASD diagnosis" = "Comorbid ASD diagnosis",
+    "child.parent.pre.biological_sex_of_your_child_at_birth_binaryFemale" = "Female",
+    "child.parent.pre.age_yrs" = "Age [years]"
+  )
+  ) %>%
+  select( 
+    Variable,
+    Estimate = estimate,
+    SE = std.error,
+    z_value = statistic,
+    p_value = p.value,
+    CI_low = conf.low, 
+    CI_high = conf.high
+  )
+                             
+kable(sensory_asd_tidy_nb)
+```
+
+
+```{r sensory glm diagnostic plots}
+sensory.asd.glm.diag <- glm.diag.plots(m1nb)
+sensory.asd.glm.diag
+```
+
+
+##Lack of interest 
+###Linear regression
+
+```{r lack of interest lm}
+m2 <- regression_asd_arfid_dat %>% 
+  lm(formula = pardi.lack_of_interest_numeric ~ 
+       ASD_diagnosis +
+       child.parent.pre.biological_sex_of_your_child_at_birth_binary + 
+       child.parent.pre.age_yrs)
+
+summary(m2)
+```
+
+tidy table
+```{r lack interest tidy table}
+interest_table_asd <- tidy(m2)
+kable(interest_table_asd)
+```
+
+Box plot of relationship between lack of interest ARFID score and comorbid ASD diagnosis 
+```{r lack interest boxplot}
+g2.asd <- regression_asd_arfid_dat %>%
+  drop_na(ASD_diagnosis) %>%
+  drop_na(pardi.lack_of_interest_numeric) %>%
+  
+  ggplot(aes(x = ASD_diagnosis,
+             y = pardi.lack_of_interest_numeric, 
+             fill = ASD_diagnosis)) +
+  geom_boxplot(
+    show.legend = FALSE
+  ) + 
+  xlab("Comorbid ASD diagnosis") + 
+  ylab("PARDI-AR-Q score") + 
+  labs(fill = "Comorbid ASD diagnosis") + 
+  theme_minimal()
+
+g2.asd
+```
+
+diagnostic plots
+```{r lack interest diagnostic plots}
+plot(m2)
+autoplot(m2)
+```
+
+
+###Negative binomial regression 
+```{r lack interest negative binomial regression}
+m2nb <-
+  MASS::glm.nb(pardi.lack_of_interest_numeric ~ 
+                 ASD_diagnosis +
+                 child.parent.pre.biological_sex_of_your_child_at_birth_binary + 
+                 child.parent.pre.age_yrs, 
+               data = regression_asd_arfid_dat
+               )
+
+summary(m2nb)
+```
+
+Exponentiated output
+```{r lack interest NB regression exponentiate output}
+m2nb$family$linkinv(coef(m2nb))
+```
+
+As a percentage
+```{r lack interest percentage}
+round((m2nb$family$linkinv(coef(m2nb))-1)*100)
+```
+
+Pseudo r-squared 
+- use Nagelkerke (Cragg and Uhler) in the output regression summary table
+```{r lack interest r2 nagelkerke}
+nagelkerke(m2nb)
+```
+
+Tidy table
+```{r lack interest m2nb table}
+interest_tidy_nb <- m2nb %>% 
+  tidy(
+    conf.int = TRUE, 
+    exponentiate = TRUE
+    ) %>%
+  mutate(
+    Variable =
+  recode_factor(
+    term,
+    "ASD_diagnosisSuspected ASD" = "Suspected ASD",
+    "ASD_diagnosisASD diagnosis" = "Comorbid ASD diagnosis",
+    "child.parent.pre.biological_sex_of_your_child_at_birth_binaryFemale" = "Female",
+    "child.parent.pre.age_yrs" = "Age [years]"
+  )
+  ) %>%
+  select( 
+    Variable,
+    Estimate = estimate,
+    SE = std.error,
+    z_value = statistic,
+    p_value = p.value,
+    CI_low = conf.low, 
+    CI_high = conf.high
+  )
+kable(interest_tidy_nb) 
+```
+
+
+```{r lack interest glm diagnostic plots}
+interest.asd.glm.diag <- glm.diag.plots(m2nb)
+interest.asd.glm.diag
+```
+
+
+##Fear of aversive consequences
+### Linear regression
+
+```{r fear consequences lm}
+m3 <- regression_asd_arfid_dat %>% 
+  lm(formula = pardi.fear_of_aversive_consequences_numeric ~ 
+       ASD_diagnosis +
+       child.parent.pre.biological_sex_of_your_child_at_birth_binary + 
+       child.parent.pre.age_yrs)
+
+summary(m3)
+```
+
+tidy table
+```{r fear table}
+fear_table_asd <- tidy(m3)
+kable(fear_table_asd)
+```
+
+Box plot of relationship between fear of aversive consequences and comorbid ASD
+```{r fear boxplot}
+g3.asd <- regression_asd_arfid_dat %>%
+  drop_na(ASD_diagnosis) %>%
+  drop_na(pardi.fear_of_aversive_consequences_numeric) %>%
+  
+  ggplot(aes(x = ASD_diagnosis,
+             y = pardi.fear_of_aversive_consequences_numeric, 
+             fill = ASD_diagnosis)) +
+  geom_boxplot(
+    show.legend = FALSE
+  ) + 
+  xlab("Comorbid ASD diagnosis") + 
+  ylab("PARDI-AR-Q score") + 
+  labs(fill = "Comorbid ASD diagnosis") + 
+  theme_minimal()
+
+g3.asd
+```
+
+diagnostic plots
+```{r fear diagnostic plots}
+plot(m3)
+autoplot(m3)
+```
+
+### Zero inflated negative binomial regression 
+Fear of aversive consequences profile score has a zero-inflated model and therefore a zero-inflated negative binomial regression was also computed
+```{r fear zero infated negative binomial regr}
+m3_zinb <- zeroinfl(pardi.fear_of_aversive_consequences_numeric ~ 
+                      ASD_diagnosis +
+                      child.parent.pre.biological_sex_of_your_child_at_birth_binary + 
+                      child.parent.pre.age_yrs, 
+                    data = regression_asd_arfid_dat,
+                    dist = "negbin",
+                    #zero.dist = "binomial", # ? 
+                    link = "logit")
+
+summary(m3_zinb)
+```
+
+Table alternative for zero inflation models
+Error: No tidy method for objects of class zeroinfl
+
+```{r fear zinb tidy table}
+#fear_zinb_tidy <- tidy(m3_zinb, 
+#                       conf.int = TRUE) 
+#kable(fear_zinb_tidy)
+```
+
+```{r fear ZINB regression exponentiated output}
+exp(coef(m3_zinb))
+```
+
+As a percentage
+```{r Fear percentage}
+round((exp(coef(m3_zinb))-1)*100)
+```
+
+Pseudo r-squared 
+- use Nagelkerke (Cragg and Uhler) in the output regression summary table
+```{r fear nagelkerke}
+nagelkerke(m3_zinb)
+```
+
+
+Create tidy table manually:
+
+```{r Fear ZINB summary output}
+fear_of_aversive_consequences_asd_zinb.coefs = as.data.frame(
+  summary(m3_zinb)$coefficients$count[,1:4])
+
+names(fear_of_aversive_consequences_asd_zinb.coefs)[2] = "SE" 
+
+names(fear_of_aversive_consequences_asd_zinb.coefs)[3] = "z_score" 
+
+names(fear_of_aversive_consequences_asd_zinb.coefs)[4] = "p_value" 
+
+
+setattr(
+  fear_of_aversive_consequences_asd_zinb.coefs, 
+  "row.names", 
+  c(
+    "(Intercept)", 
+    "Female", 
+    "Age [years]", 
+    "Log(theta)"
+    )
+  )
+
+fear_of_aversive_consequences_asd_zinb.coefs
+```
+
+
+#Format regression outputs 
+
+To present regression output summarise findings in one table with the three models
+Two negative binomial regressions, one zero-inflated negative binomial regression
+Use tab_model
+
+Rename explanatory variables for the table 
+```{r rename explanatory variables}
+predictor_labs <- c(
+  `(Intercept)` = "Intercept",
+  `ASD_diagnosisSuspected ASD` = "Suspected ASD", 
+  `ASD_diagnosisASD diagnosis` = "Comorbid ASD diagnosis",
+  `child.parent.pre.biological_sex_of_your_child_at_birth_binaryFemale` = "Female",
+  `child.parent.pre.age_yrs` = "Age (years)", 
+  `count_(Intercept)` = "Intercept", 
+  `count_ASD_diagnosisSuspected ASD` = "Suspected ASD", 
+  `count_ASD_diagnosisASD diagnosis` = "Comorbid ASD diagnosis", 
+  `count_child.parent.pre.biological_sex_of_your_child_at_birth_binaryFemale` = "Female", 
+  `count_child.parent.pre.age_yrs` = "Age (years)", 
+  `zero_(Intercept)` = "Intercept", 
+  `zero_ASD_diagnosisSuspected ASD` = "Suspected ASD", 
+  `zero_ASD_diagnosisASD diagnosis` = "Comorbid ASD diagnosis", 
+  `zero_child.parent.pre.biological_sex_of_your_child_at_birth_binaryFemale` = "Female", 
+  `zero_child.parent.pre.age_yrs` = "Age (years)"
+  )
+```
+
+Format table
+```{r format regression table using tab_model}
+regression_output_asd <- 
+  tab_model(
+  m1nb, 
+  m2nb,
+  m3_zinb,
+  pred.labels = predictor_labs,
+  dv.labels = c("Sensory sensitivities",
+                "Lack of interest in eating", 
+                "Fear of aversive consequences of eating"),
+  string.pred = "Explanatory variable",
+  string.ci = "CI (95%)",
+  string.p = "p-value", 
+  p.style = "numeric",
+  digits.p = 4,
+  string.est = "Exponentiated coefficient",
+  emph.p = FALSE
+  )
+  
+  
+regression_output_asd
+```
+
+```{r print table}
+knit_print(regression_output_asd)
+```
+
+
+Need to manually format: 
+a. p-values below 0.001
+b. white space in the zero-inflated negaitve binomial model
+
+
+#Format plots
+Create one plot for the three histograms (outcome variable distributions) and the three box plots (ASD group for each of the outcome variables)
+
+Using patchwork
+Individually format sensory plots
+```{r patchwork sensory plots}
+Sensory_plots_asd <- 
+  h1.asd + g1.asd
+
+Sensory_plots_asd[[2]] = Sensory_plots_asd[[2]] + 
+  theme(axis.title.x = element_blank())
+
+Sensory_plots_asd <- Sensory_plots_asd + 
+  plot_layout(guides = "collect") + 
+   plot_annotation(title = c("ARFID driver: sensory sensitivities"))
+
+Sensory_plots_asd
+```
+
+Save the sensory plots
+```{r sensory ggsave likert plot}
+ggsave(
+  filename = paste0("Sensory_plots_asd", date, ".pdf"), 
+  path = "../plots/",
+  plot = Sensory_plots_asd,
+  device = "pdf",
+  scale = 1,
+  width = 10,
+  height = 4, #or 3.8?
+  dpi = 300,
+  limitsize = FALSE,
+  bg = NULL
+  )
+```
+
+Individually format lack of interest plots
+```{r patchwork interest plots}
+Interest_plots_asd <- 
+  h2.asd + g2.asd
+
+
+Interest_plots_asd[[2]] = Interest_plots_asd[[2]] + 
+  theme(axis.title.x = element_blank())
+
+Interest_plots_asd <- Interest_plots_asd + 
+  plot_layout(guides = "collect") + 
+   plot_annotation(title = c("ARFID driver: lack of interest in eating"))
+
+Interest_plots_asd
+```
+
+```{r Interest ggsave likert plot}
+ggsave(
+  filename = paste0("Interest_plots_asd", date, ".pdf"), 
+  path = "../plots/",
+  plot = Interest_plots_asd,
+  device = "pdf",
+  scale = 1,
+  width = 10,
+  height = 4, #or 3.8?
+  dpi = 300,
+  limitsize = FALSE,
+  bg = NULL
+  )
+```
+
+Individually format fear of aversive consequences plots
+```{r patchwork fear plots}
+Fear_plots_asd <- 
+  h3.asd + g3.asd
+
+
+Fear_plots_asd[[2]] = Fear_plots_asd[[2]] + 
+  theme(axis.title.x = element_blank())
+
+Fear_plots_asd <- Fear_plots_asd + 
+  plot_layout(guides = "collect") + 
+   plot_annotation(title = c("ARFID driver: fear of aversive consequences"))
+
+Fear_plots_asd
+```
+
+```{r fear ggsave likert plot}
+ggsave(
+  filename = paste0("Fear_plots_asd", date, ".pdf"), 
+  path = "../plots/",
+  plot = Fear_plots_asd,
+  device = "pdf",
+  scale = 1,
+  width = 10,
+  height = 4, #or 3.8?
+  dpi = 300,
+  limitsize = FALSE,
+  bg = NULL
+  )
+```
+
+
+#format boxplots for poster presentation
+```{r}
+pardi_ASD_boxplots <- 
+  cowplot::plot_grid(g1.asd, 
+                     g2.asd, 
+                     g3.asd,
+                     labels = c("Sensory sensitivities", 
+                                "Lack of interest", 
+                                "Fear of aversive consequences"), 
+                     label_size = 12, 
+                     nrow = 1)
+```
+
+```{r}
+ggsave(
+  filename = paste0("pardi_ASD_boxplots_poster", date, ".pdf"), 
+  path = "../plots/",
+  plot = pardi_ASD_boxplots,
+  device = "pdf",
+  scale = 1,
+  width = 13,
+  height = 5,
+  dpi = 300,
+  limitsize = FALSE,
+  bg = NULL
+  )
+```
+
+
+#Comparative table
+
+Summary statistics table to compare the ARFID drivers in patients with ASD, comorbid ASD and no-asd
+
+```{r select ARFID profiles}
+arfid_profile <- arfid_dat %>% 
+  select(ASD_diagnosis,
+         pardi.sensory_sensitivities_numeric, 
+         pardi.lack_of_interest_numeric, 
+         pardi.fear_of_aversive_consequences_numeric, 
+         child.parent.pre.biological_sex_of_your_child_at_birth_binary, 
+         child.parent.pre.age_yrs)
+```
+
+
+```{r Prepare table}
+arfid_profile_table <- arfid_profile %>% 
+  tbl_summary(by = ASD_diagnosis, 
+              label = list(pardi.sensory_sensitivities_numeric ~ 
+                             "Avoidance of food based on sensory sensitivities", 
+                           pardi.lack_of_interest_numeric ~
+                             "Lack of interest in eating and food", 
+                           pardi.fear_of_aversive_consequences_numeric ~
+                             "Fear of aversive consequences of eating", 
+                           child.parent.pre.biological_sex_of_your_child_at_birth_binary ~ 
+                             "Patient's biological sex",
+                           child.parent.pre.age_yrs ~ 
+                             "Patient's age in years"),
+                
+              type = list(pardi.sensory_sensitivities_numeric ~ 
+                "continuous2",
+              pardi.lack_of_interest_numeric ~
+                "continuous2",
+              pardi.fear_of_aversive_consequences_numeric ~
+                "continuous2", 
+              child.parent.pre.biological_sex_of_your_child_at_birth_binary ~ 
+                "categorical",
+              child.parent.pre.age_yrs ~ 
+                "continuous2"),
+
+              statistic = all_continuous2() ~ c(
+                "{mean} ({SD})",
+                "{median} ({p25}, {p75})"), 
+              
+              missing = "always")
+```
+
+
+```{r format and run table}
+arfid_profile_table %>% 
+  bold_labels() %>%  
+  modify_header(label ~ "**ARFID Profile**") %>%
+  modify_spanning_header(c("stat_1", "stat_2") ~ "Comorbid ASD Diagnosis")
+```
+
+
