@@ -1,0 +1,1189 @@
+---
+title: "ARFID Sex Differences"
+author: "Rosie Watts"
+date: "12/07/2021"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+#Set up R Markdown
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, out.width='100%', out.height='100%')
+```
+
+Clear Global Environment 
+```{r clear global environment}
+rm(list = ls(all.names = TRUE)) 
+```
+
+Set current date 
+```{r current date}
+date <- Sys.Date()
+```
+
+Install necessary packages
+```{r install packages}
+#install.packages("knitr")
+#install.packages("summarytools")
+#install.packages("skimr")
+#install.packages("psych")
+#install.packages("gt")
+#install.packages("sjPlot")
+#install.packages("sjmisc")
+#install.packages("ggplot2")
+#install.packages("dplyr")
+#install.packages("gtsummary")
+#install.packages("rcompanion")
+#install.packages("patchwork")
+#install.packages("car")
+#install.packages("pscl")
+#install.packages("ggfortify")
+#install.packages("broom")
+#install.packages("MASS")
+#install.packaes("tidyverse")
+```
+
+Load necessary packages 
+```{r load packages}
+library(knitr)
+library(summarytools)
+library(skimr)
+library(psych)
+library(sjPlot)
+library(likert)
+library(ggplot2)
+library(gtsummary)
+library(patchwork)
+library(data.table)
+library(rcompanion)
+library(car)
+library(ggfortify)
+library(broom) 
+library(boot)
+library(pscl)
+library(cowplot)
+library(tidyverse)
+```
+
+Read in data
+```{r read in raw_data}
+arfid_dat <- readRDS(file = "../data/arfid_data_clean2021-08-18.rds")
+```
+
+#Inspect the dataset
+```{r skim}
+arfid_dat %>% 
+  skim()
+```
+
+
+#Visually Inspect the distribution of PARDI Profiles data 
+Outcome variables in regression
+
+##Sensory sensitivity
+Histrogram
+```{r sensory sensitivity profile histogram}
+h1 <- arfid_dat %>% 
+  ggplot(aes(x = pardi.sensory_sensitivities_numeric, 
+             fill = child.parent.pre.biological_sex_of_your_child_at_birth_binary)) +
+  geom_histogram(position = position_dodge(preserve = "single")) + 
+  labs(x = "PARDI-AR-Q score", 
+       y = "Count", 
+       fill = "Patient's sex") +
+  scale_fill_manual(values=c("#1920FA",
+                             "#FACE19")) +
+  theme_minimal()
+
+h1
+```
+
+Density plot
+```{r sensory sensitivity profile density plot}
+d1 <- arfid_dat %>% 
+  ggplot(aes(x = pardi.sensory_sensitivities_numeric)) +
+  geom_density() + 
+  labs(x = "PARDI profile score: Avoidance based on sensory sensitivities", 
+       y = "Density") +
+  theme_minimal()
+
+d1
+```
+
+Check the skewness
+```{r sensory skewness}
+arfid_dat %>% 
+  summarytools::descr(pardi.sensory_sensitivities_numeric)
+```
+
+Sensory sensitivities driver outcome variable is negatively skewed
+
+##Lack of interest
+Histrogram
+```{r lack interest profile histogram}
+h2 <- arfid_dat %>% 
+  ggplot(aes(
+    x = pardi.lack_of_interest_numeric,
+    fill = child.parent.pre.biological_sex_of_your_child_at_birth_binary)) +
+  geom_histogram(position = position_dodge(preserve = "single")) + 
+  labs(x = "PARDI-AR-Q score", 
+       y = "Count", 
+       fill = "Patient's sex") +
+  scale_fill_manual(values=c("#1920FA",
+                             "#FACE19")) +
+  theme_minimal()
+
+h2
+```
+
+Density plot
+```{r lack interest profile density plot}
+d2 <- arfid_dat %>% 
+  ggplot(aes(x = pardi.lack_of_interest_numeric)) +
+  geom_density() + 
+  labs(x = "PARDI profile score: Lack of interest in eating and food", 
+       y = "Density") +
+  theme_minimal()
+
+d2
+```
+
+```{r interest skewness}
+arfid_dat %>% 
+  summarytools::descr(pardi.lack_of_interest_numeric)
+```
+Lack of interest driver outcome variable is negatively skewed
+
+
+##Fear of aversive consequences
+Histogram plot
+```{r fear of aversive consequences histogram}
+h3 <- arfid_dat %>% 
+  ggplot(
+    aes(x = pardi.fear_of_aversive_consequences_numeric,
+        fill = child.parent.pre.biological_sex_of_your_child_at_birth_binary)) +
+  geom_histogram(position = position_dodge(preserve = "single")) + 
+  labs(x = "PARDI-AR-Q score", 
+       y = "Count", 
+       fill = "Patient's sex") +
+  scale_fill_manual(values=c("#1920FA",
+                             "#FACE19")) +
+  theme_minimal()
+
+h3
+```
+
+Density plot
+```{r fear of aversive consequences density plot}
+d3 <- arfid_dat %>% 
+  ggplot(aes(x = pardi.fear_of_aversive_consequences_numeric)) +
+  geom_density() + 
+  labs(x = "PARDI profile score: Fear of aversive consequences of eating", 
+       y = "Density") +
+  theme_minimal()
+
+d3
+```
+
+Check the skewness
+```{r fear skewness}
+arfid_dat %>% 
+  summarytools::descr(pardi.fear_of_aversive_consequences_numeric)
+```
+
+Fear of aversive consequences driver outcome variable has a zero-inflated distribution
+
+
+
+##Correlations
+Inspect the correlations amongst the three PARDI profile scores
+```{r Sensory and interest correlation}
+arfid_dat %>% 
+  select(pardi.sensory_sensitivities_numeric, 
+         pardi.lack_of_interest_numeric) %>% 
+  cor(use = "pairwise.complete.obs")
+```
+
+```{r sensory and fear correlation}
+arfid_dat %>% 
+  select(pardi.sensory_sensitivities_numeric, 
+         pardi.fear_of_aversive_consequences_numeric) %>% 
+  cor(use = "pairwise.complete.obs")
+```
+
+```{r fear and interest correlation}
+arfid_dat %>% 
+  select(pardi.fear_of_aversive_consequences_numeric, 
+         pardi.lack_of_interest_numeric) %>% 
+  cor(use = "pairwise.complete.obs")
+```
+
+
+
+#Likert plot for endorsement of PARDI items plotted by sex
+
+Plot responses on PARDI-AR-Q parent 4+ for male and female patients separately
+
+##Male
+Filter by male participants and select variables to plot
+```{r filter by male and select variables}
+arfid_dat_likert_male <- arfid_dat %>% 
+  
+  filter(child.parent.pre.biological_sex_of_your_child_at_birth_binary ==
+           "Male") %>%
+  
+  select(
+    pardi.parent.pre.interactions_people_eating_difficulties,
+    pardi.parent.pre.difficult_social_situations_social,
+    pardi.parent.pre.taste_variation_sensitive_past,
+    pardi.parent.pre.consistency_sensitive_past_month,
+    pardi.parent.pre.appearance_sensitive_past_month,
+    pardi.parent.pre.child_forgotten_forgotten_make,
+    pardi.parent.pre.child_appeared_lack_enjoyment,
+    pardi.parent.pre.stopped_eating_early_finished,
+    pardi.parent.pre.affected_choking_pain_type,
+    pardi.parent.pre.child_avoided_eating_situations,
+    pardi.parent.pre.child_expressed_panic_physical) %>% 
+  
+    rename(
+    "Difficulties: interactions with others" =
+    pardi.parent.pre.interactions_people_eating_difficulties,
+    "Difficulty: social situations" =
+    pardi.parent.pre.difficult_social_situations_social,
+    "Sensory sensitivity: taste" =
+    pardi.parent.pre.taste_variation_sensitive_past,
+    "Sensory sensitivity: texture" =
+    pardi.parent.pre.consistency_sensitive_past_month,
+    "Sensory sensitivity: appearance" =
+    pardi.parent.pre.appearance_sensitive_past_month,
+    "Forgotten to eat" = 
+    pardi.parent.pre.child_forgotten_forgotten_make,
+    "Lacked enjoyment in food" = 
+    pardi.parent.pre.child_appeared_lack_enjoyment,
+    "Stopped eating early" = 
+    pardi.parent.pre.stopped_eating_early_finished,
+    "Afraid something bad might happen" = 
+    pardi.parent.pre.affected_choking_pain_type,
+    "Avoided eating due to such worries" = 
+    pardi.parent.pre.child_avoided_eating_situations,
+    "Physical feelings of panic and anxiety" = 
+    pardi.parent.pre.child_expressed_panic_physical)
+
+arfid_dat_likert_male
+```
+
+Format Likert data
+```{r format male likert data}
+male_likert_data <- likert(arfid_dat_likert_male)
+```
+
+Plot with likert package
+```{r male likert plot }
+male.likert.plot <- 
+  likert.bar.plot(male_likert_data, 
+                  colors = 
+                  c("#fef0d9", 
+                    "#fdd49e", 
+                    "#fdbb84",
+                    "#fc8d59",
+                    "#ef6548",
+                    "#d7301f",
+                    "#990000"),
+                  plot.percent.neutral = FALSE,
+                  text.color = "black",
+                  text.size = 3,
+                  ordered = FALSE, 
+                  group.order = c(
+                    "Difficulties: interactions with others", 
+                    "Difficulty: social situations",
+                    "Sensory sensitivity: taste",
+                    "Sensory sensitivity: texture", 
+                    "Sensory sensitivity: appearance", 
+                    "Forgotten to eat", 
+                    "Lacked enjoyment in food", 
+                    "Stopped eating early", 
+                    "Afraid something bad might happen", 
+                    "Avoided eating due to such worries", 
+                    "Physical feelings of panic and anxiety")
+                  ) + 
+  labs(y = "Endorsement (%)", 
+       x = "PARDI-AR-Q item", 
+       title = "Male", 
+       subtitle = "n = 49") +
+  theme_minimal() 
+
+
+male.likert.plot$layers[[1]]$geom_params$width = 0.7
+male.likert.plot$layers[[2]]$geom_params$width = 0.7
+male.likert.plot$layers[[3]]$geom_params$width = 0.7
+male.likert.plot$layers[[4]]$geom_params$width = 0.7
+male.likert.plot$layers[[5]]$geom_params$width = 0.7
+
+
+male.likert.plot
+```
+
+check this worked by checking frequencies against likert plot 
+```{r check frequency}
+arfid_dat_likert_male %>% 
+  freq
+```
+Yes this works! 
+Level 0 ,1, 2 percentage is reported on the left
+Level 3 percentage is dropped 
+Level 4, 5, 6 percentage is reported on the right
+
+
+##Female
+Filter by female and select variables to plot
+```{r filter by female and select variables}
+arfid_dat_likert_female <- arfid_dat %>% 
+  
+  filter(child.parent.pre.biological_sex_of_your_child_at_birth_binary ==
+           "Female") %>%
+  
+  select(
+    pardi.parent.pre.interactions_people_eating_difficulties,
+    pardi.parent.pre.difficult_social_situations_social,
+    pardi.parent.pre.taste_variation_sensitive_past,
+    pardi.parent.pre.consistency_sensitive_past_month,
+    pardi.parent.pre.appearance_sensitive_past_month,
+    pardi.parent.pre.child_forgotten_forgotten_make,
+    pardi.parent.pre.child_appeared_lack_enjoyment,
+    pardi.parent.pre.stopped_eating_early_finished,
+    pardi.parent.pre.affected_choking_pain_type,
+    pardi.parent.pre.child_avoided_eating_situations,
+    pardi.parent.pre.child_expressed_panic_physical) %>% 
+  
+    rename(
+    "Difficulties: interactions with others" =
+    pardi.parent.pre.interactions_people_eating_difficulties,
+    "Difficulty: social situations" =
+    pardi.parent.pre.difficult_social_situations_social,
+    "Sensory sensitivity: taste" =
+    pardi.parent.pre.taste_variation_sensitive_past,
+    "Sensory sensitivity: texture" =
+    pardi.parent.pre.consistency_sensitive_past_month,
+    "Sensory sensitivity: appearance" =
+    pardi.parent.pre.appearance_sensitive_past_month,
+    "Forgotten to eat" = 
+    pardi.parent.pre.child_forgotten_forgotten_make,
+    "Lacked enjoyment in food" = 
+    pardi.parent.pre.child_appeared_lack_enjoyment,
+    "Stopped eating early" = 
+    pardi.parent.pre.stopped_eating_early_finished,
+    "Afraid something bad might happen" = 
+    pardi.parent.pre.affected_choking_pain_type,
+    "Avoided eating due to such worries" = 
+    pardi.parent.pre.child_avoided_eating_situations,
+    "Physical feelings of panic and anxiety" = 
+    pardi.parent.pre.child_expressed_panic_physical)
+  
+
+arfid_dat_likert_female
+```
+
+Format Likert data
+```{r format female likert data}
+female_likert_data <- likert(arfid_dat_likert_female)
+```
+
+Plot with Likert package
+```{r female likert plot }
+female.likert.plot <- 
+  likert.bar.plot(female_likert_data, 
+                  colors = 
+                  c("#fef0d9", 
+                    "#fdd49e", 
+                    "#fdbb84",
+                    "#fc8d59",
+                    "#ef6548",
+                    "#d7301f",
+                    "#990000"),
+                  plot.percent.neutral = FALSE,
+                  text.color = "black",
+                  text.size = 3,
+                  ordered = FALSE, 
+                  group.order = c(
+                    "Difficulties: interactions with others", 
+                    "Difficulty: social situations",
+                    "Sensory sensitivity: taste",
+                    "Sensory sensitivity: texture", 
+                    "Sensory sensitivity: appearance", 
+                    "Forgotten to eat", 
+                    "Lacked enjoyment in food", 
+                    "Stopped eating early", 
+                    "Afraid something bad might happen", 
+                    "Avoided eating due to such worries", 
+                    "Physical feelings of panic and anxiety")
+                  ) + 
+  labs(y = "Endorsement (%)", 
+       x = "PARDI-AR-Q item", 
+       title = "Female", 
+       subtitle = "n = 60") +
+  theme_minimal() 
+
+
+female.likert.plot$layers[[1]]$geom_params$width = 0.7
+female.likert.plot$layers[[2]]$geom_params$width = 0.7
+female.likert.plot$layers[[3]]$geom_params$width = 0.7
+female.likert.plot$layers[[4]]$geom_params$width = 0.7
+female.likert.plot$layers[[5]]$geom_params$width = 0.7
+
+
+female.likert.plot
+```
+
+
+##Male and Female 
+
+Format with patchwork so that the two likert plots are side by side. 
+Drop Y label from one 
+Share legend
+```{r patchwork landscape}
+sex_likert_landscape <- male.likert.plot + female.likert.plot 
+
+# Remove title from second subplot
+sex_likert_landscape[[2]] = sex_likert_landscape[[2]] + 
+  theme(#axis.text.y = element_blank(),
+        #axis.ticks.y = element_blank(),
+        axis.title.y = element_blank())
+
+
+sex_likert_landscape <- sex_likert_landscape +  plot_layout(guides = "collect") 
+
+sex_likert_landscape
+```
+
+
+```{r patchwork portrait}
+sex_likert_portrait <- male.likert.plot / female.likert.plot 
+
+sex_likert_portrait <- sex_likert_portrait +  plot_layout(guides = "collect") 
+
+sex_likert_portrait
+```
+
+
+Save Likert plot
+```{r ggsave likert plot landscape}
+ggsave(
+  filename = paste0("likert_plot_sex_landscape", date, ".pdf"), 
+  path = "../plots/",
+  plot = sex_likert_landscape,
+  device = "pdf",
+  scale = 1,
+  width = 15,
+  height = 6,
+  dpi = 300,
+  limitsize = FALSE,
+  bg = NULL
+  )
+```
+
+```{r ggsave likert plot portrait}
+ggsave(
+  filename = paste0("likert_plot_sex_portrait", date, ".pdf"), 
+  path = "../plots/",
+  plot = sex_likert_portrait,
+  device = "pdf",
+  scale = 1,
+  width = 9,
+  height = 10,
+  dpi = 300,
+  limitsize = FALSE,
+  bg = NULL
+  )
+```
+
+
+#Regressions 
+
+Will be computed to examine the effect of sex on the PARDI profile scores, whilst controlling for the patient's age. 
+1. Sensory sensitivity profile (0 - 18)
+2. Lack of interest profile (0 - 18)
+3. Fear of aversive consequences profile (0 - 18)
+
+Sex = 
+"Male",
+"Female"
+
+```{r select variables}
+regression_sex_arfid_dat <- arfid_dat %>% 
+  select(pardi.sensory_sensitivities_numeric,
+         pardi.lack_of_interest_numeric, 
+         pardi.fear_of_aversive_consequences_numeric,
+         patients_biological_sex =
+           child.parent.pre.biological_sex_of_your_child_at_birth_binary,
+         child.parent.pre.age_yrs) 
+```
+
+
+##Sensory sensitivity driver 
+###Linear regression and plots
+
+Run linear regression
+However, due to the distribution of the outcome variable we will run and report negative bionomial regressions
+```{r sensory lm}
+m1 <- regression_sex_arfid_dat %>% 
+  lm(formula = pardi.sensory_sensitivities_numeric ~ 
+       patients_biological_sex + 
+       child.parent.pre.age_yrs)
+
+summary(m1)
+```
+
+Format in tidy table
+```{r sensory tidy ouput}
+sensory_table <- m1 %>%
+  tidy() %>%
+  mutate(
+    Variable =
+  recode_factor(
+    term,
+    "patients_biological_sexFemale" = "Female",
+    "child.parent.pre.age_yrs" = "Age [years]"
+  )
+  ) %>%
+  select(
+    Variable,
+    Estimate = estimate,
+    SE = std.error,
+    t_value = statistic,
+    p_value = p.value
+  )
+  
+
+kable(sensory_table)
+```
+
+Box plot of relationship between sensory sensitivities and patient's sex:
+Format without legend (as going to format with multiple other plots)
+```{r sensory boxplot}
+g1 <- regression_sex_arfid_dat %>%
+  drop_na(patients_biological_sex) %>%
+  drop_na(pardi.sensory_sensitivities_numeric) %>%
+
+  ggplot(aes(x = patients_biological_sex,
+             y = pardi.sensory_sensitivities_numeric, 
+             fill = patients_biological_sex)) +
+  geom_boxplot(
+    show.legend = FALSE) + 
+  xlab("Patient's sex") + 
+  ylab("PARDI-AR-Q score") + 
+  labs(fill = "Patient's Sex") + 
+  scale_fill_manual(values=c("#1920FA",
+                             "#FACE19")) +
+  theme_minimal()
+
+g1 
+```
+
+Check lm assumptions
+Multicollinearity 
+```{r multicollinearity}
+vif(m1)
+```
+
+Diagnostic plots
+
+http://www.sthda.com/english/articles/39-regression-model-diagnostics/161-linear-regression-assumptions-and-diagnostics-in-r-essentials/
+
+```{r sensory diagnostic plots}
+plot(m1)
+autoplot(m1)
+```
+
+
+###Negative Binomial Regression: 
+Due to the distribution of the response variable, we will also compute a negative binomial regression for ARFID profile and compare the output. 
+```{r sensory negative binomial regression}
+m1nb <- 
+  MASS::glm.nb(pardi.sensory_sensitivities_numeric ~ 
+                 patients_biological_sex + 
+                 child.parent.pre.age_yrs, 
+               data = regression_sex_arfid_dat
+               )
+
+summary(m1nb)
+```
+
+Exponetiate coefficient to report output
+```{r sensory NB exp}
+m1nb$family$linkinv(coef(m1nb))
+```
+
+Exponentiated coefficient as a percentage
+```{r sensory NB as percentage}
+round((m1nb$family$linkinv(coef(m1nb))-1)*100)
+```
+
+Check r2 nagelkerke (pseudo r2)
+- use Nagelkerke (Cragg and Uhler) in the output regression summary table
+```{r sensory r2 nagelkerke}
+nagelkerke(m1nb)
+```
+
+Create tidy table output: 
++++RW: exponentiate = TRUE, but is the output exponenitated? 
+```{r sensory nb tidy table}
+sensory_tidy_nb <- m1nb %>% 
+  tidy(
+    conf.int = TRUE,
+    exponentiate = TRUE
+    ) %>% 
+  mutate(
+    Variable =
+  recode_factor(
+    term,
+    "patients_biological_sexFemale" = "Female",
+    "child.parent.pre.age_yrs" = "Age [years]"
+    )
+  ) %>% 
+  select( 
+    Variable,
+    Estimate = estimate,
+    SE = std.error,
+    z_value = statistic,
+    p_value = p.value,
+    CI_low = conf.low, 
+    CI_high = conf.high
+  )
+    
+kable(sensory_tidy_nb)
+```
+
+Check diagnostic plots 
+```{r sensory glm diagnostic plots}
+sensory.glm.diag <- glm.diag.plots(m1nb)
+sensory.glm.diag
+```
+
+
+## lack of interest driver
+###Linear regression
+
+Run linear regression
+However, due to the distribution of the outcome variable we will run and report negative binomial regressions
+```{r lack of interest lm}
+m2 <- regression_sex_arfid_dat %>% 
+  lm(formula = pardi.lack_of_interest_numeric ~ 
+       patients_biological_sex + 
+       child.parent.pre.age_yrs)
+
+summary(m2)
+```
+
+Format tidy table
+```{r lack interest tidy output}
+interest_table <- m2 %>% 
+  tidy() %>%
+  mutate(
+    Variable =
+  recode_factor(
+    term,
+    "patients_biological_sexFemale" = "Female",
+    "child.parent.pre.age_yrs" = "Age [years]"
+  )
+  ) %>%
+  select(
+    Variable,
+    Estimate = estimate,
+    SE = std.error,
+    t_value = statistic,
+    p_value = p.value
+  )
+
+kable(interest_table)
+```
+
+Box plot of the relationship between lack of interest in eating and food and patient's sex
+Format without legend (as going to format with multiple other plots)
+```{r lack interest boxplot}
+g2 <- regression_sex_arfid_dat %>%
+  drop_na(patients_biological_sex) %>%
+  drop_na(pardi.lack_of_interest_numeric) %>% 
+  ggplot(
+    aes(
+      x = patients_biological_sex, 
+      y = pardi.lack_of_interest_numeric, 
+      fill = patients_biological_sex
+      )  
+    ) + 
+  geom_boxplot(
+    show.legend = FALSE
+  ) + 
+  xlab("Patient's sex") + 
+  ylab("PARDI-AR-Q score") + 
+  labs(fill = "Patient's sex") + 
+  scale_fill_manual(values=c("#1920FA",
+                             "#FACE19")) +
+  theme_minimal()
+
+g2
+```
+
+diagnostic plots to check assumptions
+```{r lack interest diagnostic plots}
+plot(m2)
+autoplot(m2)
+```
+
+###Negative Binomial regression 
+
+```{r lack interest negative binomial regression}
+m2nb <- 
+  MASS::glm.nb(pardi.lack_of_interest_numeric ~ 
+                 patients_biological_sex + 
+                 child.parent.pre.age_yrs, 
+               data = regression_sex_arfid_dat
+               )
+
+summary(m2nb)
+```
+
+Exponentiate the coefficients
+```{r lack interest exp}
+m2nb$family$linkinv(coef(m2nb))
+```
+
+As a percentage
+```{r lack interest NB percentage}
+round((m2nb$family$linkinv(coef(m2nb))-1)*100)
+```
+
+Pseudo r-squared 
+- use Nagelkerke (Cragg and Uhler) in the output regression summary table
+```{r lack interest nagelkerke}
+nagelkerke(m2nb)
+```
+
+Tidy table of outcome 
+```{r lack interest nb tidy table}
+interest_tidy_nb <- m2nb %>% 
+   tidy(
+    conf.int = TRUE,
+    exponentiate = TRUE
+    ) %>% 
+  mutate(
+    Variable =
+  recode_factor(
+    term,
+    "patients_biological_sexFemale" = "Female",
+    "child.parent.pre.age_yrs" = "Age [years]"
+    )
+  ) %>%  
+  select( 
+    Variable,
+    Estimate = estimate,
+    SE = std.error,
+    z_value = statistic, 
+    p_value = p.value,
+    CI_low = conf.low, 
+    CI_high = conf.high
+  )
+kable(interest_tidy_nb)
+```
+
+GLM diagnostic plots
+```{r lack interest glm diagnostic plots}
+interest.glm.diag <- glm.diag.plots(m2nb)
+interest.glm.diag
+```
+
+
+## Fear of aversive consequences
+###Linear Regression
+However, due to the distribution of the outcome variable we will run zero-inflated negative bionomial regressions
+
+```{r fear lm}
+m3 <- regression_sex_arfid_dat %>% 
+  lm(formula = pardi.fear_of_aversive_consequences_numeric ~ 
+       patients_biological_sex + 
+       child.parent.pre.age_yrs)
+
+summary(m3)
+```
+
+Run a linear regression filtering out 0's to compare to zero-inflated binomial regression model
+```{r fear lm filtered without 0}
+m3_without_zeros <- regression_sex_arfid_dat %>% 
+  filter(pardi.fear_of_aversive_consequences_numeric != 0) %>%
+  lm(
+    formula =
+      pardi.fear_of_aversive_consequences_numeric 
+    ~ patients_biological_sex
+    + child.parent.pre.age_yrs
+    )
+
+summary(m3_without_zeros)
+```
+
+Tidy output
+```{r fear tidy output}
+fear_table <- m3 %>% 
+  tidy() %>%
+  mutate(
+    Variable =
+  recode_factor(
+    term,
+    "patients_biological_sexFemale" = "Female",
+    "child.parent.pre.age_yrs" = "Age [years]"
+  )
+  ) %>%
+  select(
+    Variable,
+    Estimate = estimate,
+    SE = std.error,
+    t_value = statistic,
+    p_value = p.value
+  )
+
+kable(fear_table)
+```
+
+
+Boxplot of relationship between fear of aversive consequences of eating and patient's sex
+Format without legend (as going to format with multiple other plots)
+```{r fear boxplot}
+g3 <- regression_sex_arfid_dat %>%
+  drop_na(patients_biological_sex) %>%
+  drop_na(pardi.fear_of_aversive_consequences_numeric) %>%
+  
+  ggplot(aes(x = patients_biological_sex,
+             y = pardi.fear_of_aversive_consequences_numeric, 
+             fill = patients_biological_sex)) +
+  geom_boxplot(
+    show.legend = FALSE
+  ) + 
+  xlab("Patient's sex") + 
+  ylab("PARDI-AR-Q score") + 
+  labs(fill = "Patient's Sex") + 
+  scale_fill_manual(values=c("#1920FA",
+                             "#FACE19")) +
+  theme_minimal()
+
+g3 
+```
+
+diagnostic plots
+```{r fear diagnostic plots}
+plot(m3)
+autoplot(m3)
+```
+
+
+###Zero-inflated negative binomial regression 
+
+```{r fear zero infated negative binomial regr}
+m3_zinb <- zeroinfl(pardi.fear_of_aversive_consequences_numeric ~ 
+                      patients_biological_sex + 
+                      child.parent.pre.age_yrs, 
+                    data = regression_sex_arfid_dat,
+                    dist = "negbin",
+                    #  zero.dist = "binomial",
+                    link = "logit")
+
+summary(m3_zinb)
+```
+
+Error: No tidy method for objects of class zeroinfl
+```{r fear zinb tidy}
+#fear_tidy_zinb <- tidy(m3_zinb, 
+#                     conf.int = TRUE)
+#kable(fear_tidy_zinb)
+```
+
+Exponentiate zero inflated coefficients
+```{r fear exp}
+exp(coef((m3_zinb)))
+```
+
+Percentage
+```{r fear ZINB as percentage}
+round((exp(coef(m3_zinb))-1)*100)
+```
+
+Pseudo r-squared 
+- use Nagelkerke (Cragg and Uhler) in the output regression summary table
+```{r fear nagelkerke}
+nagelkerke(m3_zinb)
+```
+
+
+Confidence Intervals
+```{r fear confidence intervals}
+confint(m3_zinb)
+```
+
++++RW: How to exponentiate coefficients in this table and add confidence intervals? 
+How to add the zero inflated part of the model? 
+```{r create fear zinb table}
+fear_of_aversive_consequences_zinb.coefs = as.data.frame(
+  summary(m3_zinb)$coefficients$count[,1:4])
+
+names(fear_of_aversive_consequences_zinb.coefs)[2] = "SE" 
+
+names(fear_of_aversive_consequences_zinb.coefs)[3] = "z_score" 
+
+names(fear_of_aversive_consequences_zinb.coefs)[4] = "p_value" 
+
+
+setattr(
+  fear_of_aversive_consequences_zinb.coefs, "row.names", c("(Intercept)", 
+                                                            "Female", 
+                                                            "Age [years]", 
+                                                            "Log(theta)"))
+
+fear_of_aversive_consequences_zinb.coefs
+```
+
+
+
+#Presentation of regression output
+
+How to present the output of negative binomial regression and zero-inflated negative binomial regression
+One table which includes the three regression models 
+Use tab_model: 
+
+https://cran.r-project.org/web/packages/sjPlot/vignettes/tab_model_estimates.html
+
+Rename labels of explanatory variables for table
+```{r rename labels of explanatory variables}
+explanatory_labs <- c(
+  `(Intercept)` = "Intercept",
+  `patients_biological_sexFemale` = "Female",
+  `child.parent.pre.age_yrs` = "Age (years)", 
+  `count_(Intercept)` = "Intercept", 
+  `count_patients_biological_sexFemale` = "Female",
+  `count_child.parent.pre.age_yrs` = "Age (years)",
+  `zero_(Intercept)` = "Intercept", 
+  `zero_patients_biological_sexFemale`	 = "Female",
+  `zero_child.parent.pre.age_yrs` = "Age (years)"
+)
+```
+
+Format the table including two negative binomial regression and one zero-inflated negative binomial regression output
+```{r format regression output table}
+regression_output <- 
+  tab_model(
+  m1nb, 
+  m2nb,
+  m3_zinb,
+  pred.labels = explanatory_labs,
+  dv.labels = c("Sensory sensitivities",
+                "Lack of interest in food", 
+                "Fear of aversive consequences of eating"),
+  string.pred = "Explanatory variable",
+  string.ci = "CI (95%)",
+  string.p = "p-value", 
+  p.style = "numeric",
+  digits.p = 4,
+  string.est = "Exponentiated coefficient",
+  emph.p = FALSE
+  )
+  
+regression_output
+```
+
+
+```{r print regression table}
+knit_print(regression_output)
+```
+
+
+All p-values of intercept are: 
+0.000000000000002
+Would I show these as: 
+1. scientific notation: 2e-16 
+2. round to 4 dec points: 0.0000
+Manually edit these. 
+
+Doesn't recognise that zero-inflated and negative binomial models are the same. Manually edit the table to remove white space in the fear of averive consequences regression columns. 
+
+
+#Format plots
+Format three histograms and three boxplots into one plot to include in dissertation write up. 
+
+Using patchwork 
+First combine each driver plots with subheadings
+```{r patchwork sensory plots}
+Sensory_plots <- 
+  h1 + g1
+
+
+Sensory_plots[[2]] = Sensory_plots[[2]] + 
+  theme(axis.title.x = element_blank())
+
+Sensory_plots <- Sensory_plots + 
+  plot_layout(guides = "collect") + 
+   plot_annotation(title = c("ARFID driver: sensory sensitivities"), 
+                   tag_levels = 'A')
+
+Sensory_plots
+```
+
+```{r sensory ggsave likert plot}
+ggsave(
+  filename = paste0("Sensory_plots", date, ".pdf"), 
+  path = "../plots/",
+  plot = Sensory_plots,
+  device = "pdf",
+  scale = 1,
+  width = 10,
+  height = 4.5,
+  dpi = 300,
+  limitsize = FALSE,
+  bg = NULL
+  )
+```
+
+```{r patchwork interest plots}
+Interest_plots <- 
+  h2 + g2
+
+
+Interest_plots[[2]] = Interest_plots[[2]] + 
+  theme(axis.title.x = element_blank())
+
+Interest_plots <- Interest_plots + 
+  plot_layout(guides = "collect") + 
+   plot_annotation(title = c("ARFID driver: lack of interest in eating"))
+
+Interest_plots
+```
+
+```{r interest ggsave likert plot}
+ggsave(
+  filename = paste0("Interest_plots", date, ".pdf"), 
+  path = "../plots/",
+  plot = Interest_plots,
+  device = "pdf",
+  scale = 1,
+  width = 10,
+  height = 4.5,
+  dpi = 300,
+  limitsize = FALSE,
+  bg = NULL
+  )
+```
+
+```{r patchwork fear plots}
+Fear_plots <- 
+  h3 + g3
+
+Fear_plots[[2]] = Fear_plots[[2]] + 
+  theme(axis.title.x = element_blank())
+
+Fear_plots <- Fear_plots + 
+  plot_layout(guides = "collect") + 
+   plot_annotation(title = c("ARFID driver: fear of aversive consequences of eating"))
+
+Fear_plots
+```
+
+```{r fear ggsave likert plot}
+ggsave(
+  filename = paste0("Fear_plots", date, ".pdf"), 
+  path = "../plots/",
+  plot = Fear_plots,
+  device = "pdf",
+  scale = 1,
+  width = 10,
+  height = 4.5,
+  dpi = 300,
+  limitsize = FALSE,
+  bg = NULL
+  )
+```
+
+
+```{r combine plots with patchwork}
+ARFID_driver_plots <- 
+  Sensory_plots / 
+  Interest_plots /
+  Fear_plots
+
+ARFID_driver_plots + 
+  plot_layout(guides = "collect")
+```
+
+
+
+#format boxplots for poster presentation
+```{r}
+pardi_sex_boxplots <- 
+  cowplot::plot_grid(g1, g2, g3,
+                     labels = c("Sensory sensitivities", 
+                                "Lack of interest", 
+                                "Fear of aversive consequences"), 
+                     label_size = 12, 
+                     nrow = 1)
+```
+
+```{r}
+ggsave(
+  filename = paste0("pardi_sex_boxplots_poster", date, ".pdf"), 
+  path = "../plots/",
+  plot = pardi_sex_boxplots,
+  device = "pdf",
+  scale = 1,
+  width = 13,
+  height = 5,
+  dpi = 300,
+  limitsize = FALSE,
+  bg = NULL
+  )
+```
+
+
+
+## PARDI profile descriptive table by Sex
+
+```{r select descriptive variables}
+arfid_profile_dat <- arfid_dat %>% 
+  select(child.parent.pre.biological_sex_of_your_child_at_birth_binary, 
+         pardi.sensory_sensitivities_numeric, 
+         pardi.lack_of_interest_numeric, 
+         pardi.fear_of_aversive_consequences_numeric, 
+         child.parent.pre.age_yrs) 
+```
+
+```{r Prepare table}
+arfid_profile_table <- arfid_profile_dat %>% 
+  tbl_summary(by = child.parent.pre.biological_sex_of_your_child_at_birth_binary, 
+              label = list(pardi.sensory_sensitivities_numeric ~ 
+                             "Avoidance of food based on sensory sensitivities", 
+                           pardi.lack_of_interest_numeric ~
+                             "Lack of interest in eating and food", 
+                           pardi.fear_of_aversive_consequences_numeric ~
+                             "Fear of aversive consequences of eating", 
+                           child.parent.pre.age_yrs ~ 
+                             "Patient's age in years"),
+                
+              type = list(pardi.sensory_sensitivities_numeric ~ 
+                "continuous2",
+              pardi.lack_of_interest_numeric ~
+                "continuous2",
+              pardi.fear_of_aversive_consequences_numeric ~
+                "continuous2", 
+              child.parent.pre.age_yrs ~ 
+                "continuous2"),
+
+              statistic = all_continuous2() ~ c(
+                "{mean} ({SD})",
+                "{median} ({p25}, {p75})"), 
+              
+              missing = "ifany")
+```
+
+```{r format and run table}
+arfid_profile_table %>% 
+  bold_labels() %>% 
+  modify_header(label ~ "**ARFID profile**") %>%
+  modify_spanning_header(c("stat_1", "stat_2") ~ "**Patient's sex**")
+```
+
+
