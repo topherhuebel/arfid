@@ -1,0 +1,1933 @@
+---
+title: "Merge and prepare datasets"
+author: "Rosie Watts"
+date: "23/07/2021"
+output: word_document
+---
+
+#Set up R Markdown
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Clear Global Environment 
+```{r clear global environment}
+rm(list = ls(all.names = TRUE)) 
+```
+
+Set current date 
+```{r current date}
+date <- Sys.Date()
+```
+
+Install necessary packages
+```{r install packages}
+#install.packages("knitr")
+#install.packages("xlsx")
+#install.packages("dplyr")
+#install.packages("summarytools")
+#install.packages("skimr")
+#install.packages("psych")
+#install.packages("gt")
+#install.packages("readxl")
+#install.packages("dplyr")
+#install.packages("tidyverse")
+
+```
+
+Load necessary packages 
+```{r load packages}
+library(knitr)
+library(xlsx)
+library(summarytools)
+library(skimr)
+library(psych)
+library(gt)
+library(readxl)
+library(dplyr)
+library(tidyverse)
+```
+
+```{r add_numeric function}
+# add_numeric function
+# Author: Yuhao Lin
+
+add_numeric <- function(dat, exclude = NULL) {
+  dat_fct <- sjlabelled::as_label(dat)
+  dat <- dat[!colnames(dat) %in% exclude]
+  colnames(dat) <- paste(colnames(dat), "numeric", sep = "_")
+  return(bind_cols(dat_fct, dat))
+}
+```
+
+#Read in data
+
+For this research project I will be using data that is stored in several platforms. 
+1. PARDI-AR-Q paper copies which have been inputting onto an excel document
+2. RCADS parent paper copies which have been inputted onto an excel document 
+3. Qualtrics data: (more recent data prior to Covid-19 has been collected via Qualtrics)
+4. Journey tracker: CAMHS specific service with data of patient's medical records, e.g., diagnoses
+5. Measures tracker: CAMHS specific service with data of patient's medical records, e.g., diagnoses
+6. Clinician clarification data inputted to excel - any data from the other measures which did no correspond or seemed implausible were checked with clinicians. This excel provides detail of the updated diagnosis information.
+
+
+Read in raw data (Qualtrics)
+```{r read in Qualtrics data}
+data_raw <- readRDS(file = "../data_raw/RosieWatts_MSc_data2021-07-23.rds")
+```
+
+Check dimensions and structure 
+```{r dimensions and structure}
+data_raw %>% 
+  dim
+
+data_raw %>% 
+  str()
+```
+
+Read in Clinician data (measures tracker)
+```{r read in clinician data}
+cl_data_raw <- readRDS(file = "../data_raw/dat_Watts2021-07-13.rds")
+```
+
+Check dimensions and structure
+```{r dimensions and structure}
+cl_data_raw %>% 
+  dim()
+
+cl_data_raw %>% 
+  str()
+```
+
+Read in PARDI paper data from excel
+```{r read in pardi data}
+pardi_data_raw <- read_xlsx(
+  path = "../data_raw/PARDI_parent_pre.xlsx",
+  trim_ws = TRUE,
+  skip = 0,
+  guess_max = 1000)
+```
+
+Check dimensions and structure
+```{r dimensions and structure}
+pardi_data_raw %>% 
+  dim
+
+pardi_data_raw %>% 
+  str()
+```
+
+Read in rcads data (excel)
+```{r read in rcads data}
+rcads_data_raw <- read_xlsx(
+  path = "../data_raw/RCADS_parent_pre.xlsx",
+  trim_ws = TRUE,
+  skip = 0,
+  guess_max = 1000)
+```
+
+Check dimensions and structure
+```{r dimensions and structure}
+rcads_data_raw %>% 
+  dim()
+
+rcads_data_raw %>% 
+  str()
+```
+
+Updated diagnoses - clarification given from clinicians
+```{r read in updated dx data }
+cl_dx_raw <- read_xlsx(
+  path = "../data_raw/updated_dx_cl.xlsx",
+  trim_ws = TRUE,
+  skip = 0,
+  guess_max = 1000)
+
+```
+
+Check dimensions and structure
+```{r updated dx dimensions and structure}
+dim(cl_dx_raw)
+str(cl_dx_raw)
+```
+
+Read ARFID and ASD dx data from journey tracker
+```{r read in diagnosis data}
+diagnosis_data_raw <- read_xlsx(
+  path = "../data_raw/ARFID_ASD_diagnoses2021-07-17.xlsx",
+  trim_ws = TRUE,
+  skip = 0,
+  guess_max = 1000)
+```
+
+Check dimensions and structure
+```{r dimensions and structure}
+diagnosis_data_raw %>% 
+  dim()
+
+diagnosis_data_raw %>% 
+  str()
+```
+
+
+##Merge Datasets
+Merge data and save a copy of data. Don't edit raw data. 
+Merge by mutual ARFID ID's 
+
+Merge PARDI with clinician data
+```{r merge PARDI and cl}
+dat_intm <- merge(cl_data_raw,
+             pardi_data_raw,
+             by.x = "ID", 
+             by.y = "id.parent.pre.please_enter_your_id_number.txt",   #ID NEED EDITING
+                  all = TRUE)
+
+dat_intm %>% 
+  dim
+```
+
+Merge PARDI/CL with RCADS
+```{r merge data with RCADS}
+dat_intm2 <- merge(dat_intm,
+             rcads_data_raw,
+             by.x = "ID", 
+             by.y = "id.parent.pre.please_enter_your_id_number.txt",
+                  all = TRUE)
+
+dat_intm2 %>% 
+  dim
+```
+
+Merge 
+PARDI/RCADS/Clinician data with Qualtrics data
+
+~Next time rename ID to ARFID_ID and merge by all columns with the same names!!
+```{r merge data with Qualtrics}
+dat_intm3 <- merge(data_raw,
+             dat_intm2,             
+             by.x = "ARFID_ID", 
+             by.y = "ID",
+             all = TRUE)
+
+dat_intm3 %>% 
+  dim()
+```
+
+Merge 
+PARDI/RCADS/Clinician/Qualtrics with diagnosis data
+```{r merge data with diagnosis}
+dat_intm4 <- merge(dat_intm3,
+             diagnosis_data_raw,
+             by.x = "ARFID_ID", 
+             by.y = "ARFID_ID",
+                  all = TRUE)
+
+dat_intm4 %>% 
+  dim
+```
+
+Merge 
+PARDI/RCADS/Clinician/Qualtrics/diagnosis data with updated diagnosis data
+```{r merge data with updated dx}
+dat <- merge(dat_intm4,
+             cl_dx_raw,
+             by.x = "ARFID_ID", 
+             by.y = "ARFID_ID",
+                  all = TRUE)
+
+dat %>% 
+  dim()
+```
+
+
+#Prepare the dataset
+
+Inspect dataset
+```{r dataset}
+dat
+```
+
+Identify any duplicate IDs in tibble
+```{r Identify duplicates in tibble}
+dat$ARFID_ID_dup<- duplicated(dat$ARFID_ID)
+
+summary(as.factor(dat$ARFID_ID_dup))
+```
+
+
+```{r filter ID duplicates}
+dat %>%
+  select(
+    ARFID_ID,
+    ARFID_ID_dup
+  ) %>%
+  filter(
+    ARFID_ID_dup == TRUE
+  )
+```
+
+```{r structure of dataset}
+dat %>% 
+  str()
+```
+
+```{r column names}
+dat %>% 
+  colnames()
+```
+
+
+Select columns - which will be cleaned in dataset
+Remove any NA's from ID column
+Drop duplicate IDs 
+add_numeric - creates a new variable for all numeric variables with the suffix '_numeric'
+
+```{r select columns add_numeric}
+exclude_cols_dem <- c("ARFID_ID",
+                      "Sex", 
+                      "Gender",
+                      "child.parent.pre.biological_sex_of_your_child_at_birth.x",
+                      "child.parent.pre.biological_sex_of_your_child_at_birth.y",
+                      "child.parent.pre.age_yrs_dec",
+                      "child.parent.pre.age_yrs",
+                      "age.parent.pre.please_choose_young_persons_age_group", 
+                      "Dx_DSM5",                                                      
+                      "Dx_ICD10",                                                      
+                      "Dx_ICD10_1",                                                     
+                      "Dx_ICD10_2",                                                    
+                      "Dx_ICD10_3", 
+                               
+                      "dem.cl.pre.307.59_avoidantrestrictive_food_intake_disorder",    
+                      "dem.cl.pre.dsm5_fed_diagnosis__subthreshold_or_full",           
+                      "dem.cl.pre.asd_diagnosis",                                      
+                      "dem.cl.pre.icd11fed_diagnosis__subthreshold_or_full",
+                      
+                      
+                      "pardi.parent.pre.what_is_your_childs_height.x",
+                      "pardi.parent.pre.what_is_your_childs_height.1.x",
+                      "pardi.parent.pre.what_is_your_childs_height.2.x", 
+                      "pardi.parent.pre.what_is_your_childs_height.3.x",
+                      "pardi.parent.pre.what_is_your_childs_weight",
+                      "pardi.parent.pre.what_is_your_childs_weight.1.x", 
+                      "pardi.parent.pre.what_is_your_childs_weight.2.x", 
+                      "pardi.parent.pre.what_is_your_childs_weight.3.x", 
+                      "currentview.cl.pre.1.anxious_away_from_caregivers",
+                      "currentview.cl.pre.2.anxious_in_social_situations", 
+                      "currentview.cl.pre.3.anxious_generally",  
+                      "currentview.cl.pre.5.panics",   
+                      "currentview.cl.pre.6.avoids_going_out", 
+                      "currentview.cl.pre.7.avoids_specific_things", 
+                      "currentview.cl.pre.5_pervasive_developmental_disorders", 
+                      "FED_Diagnosis",
+                      "ASD_Diagnosis", 
+                      "ARFID_diagnosis")    
+
+#Exclude any variable measures tracker
+                      
+arfid_dat <- dat %>% # New dataset with ID
+  drop_na(ARFID_ID) %>% # Drop NAs 
+  distinct(ARFID_ID, .keep_all = TRUE) %>% 
+  select(c(
+    ARFID_ID,
+    Sex, 
+    Gender,
+    child.parent.pre.biological_sex_of_your_child_at_birth.x,
+    child.parent.pre.biological_sex_of_your_child_at_birth.y,
+    child.parent.pre.age_yrs_dec,
+    child.parent.pre.age_yrs,
+    age.parent.pre.please_choose_young_persons_age_group, #add QUALTRICS data
+    Dx_DSM5,                                                      
+    Dx_ICD10,                                                      
+    Dx_ICD10_1,                                                     
+    Dx_ICD10_2,                                                    
+    Dx_ICD10_3,
+    ASD_Diagnosis,
+    FED_Diagnosis,
+    ARFID_diagnosis,
+    dem.cl.pre.307.59_avoidantrestrictive_food_intake_disorder,    
+    dem.cl.pre.dsm5_fed_diagnosis__subthreshold_or_full,           
+    dem.cl.pre.asd_diagnosis,                                      
+    dem.cl.pre.icd11fed_diagnosis__subthreshold_or_full,
+    
+         # PARDI items
+    pardi.parent.pre.measurement_select_preferred_unit.x, 
+    pardi.parent.pre.measurement_select_preferred_unit.1.x,
+    pardi.parent.pre.what_is_your_childs_height.x,
+    pardi.parent.pre.what_is_your_childs_height.1.x,
+    pardi.parent.pre.what_is_your_childs_height.2.x, 
+    pardi.parent.pre.what_is_your_childs_height.3.x,
+    pardi.parent.pre.what_is_your_childs_weight,
+    pardi.parent.pre.what_is_your_childs_weight.1.x, 
+    pardi.parent.pre.what_is_your_childs_weight.2.x, 
+    pardi.parent.pre.what_is_your_childs_weight.3.x,
+    pardi.parent.pre.pace_difficulty_gaining_difficulty.x, 
+    pardi.parent.pre.child_eating_habits_led.x, 
+    pardi.parent.pre.health_professional_expected_told.x,
+    pardi.parent.pre.health_professional_eating_habits.x, 
+    pardi.parent.pre.nutrition_past_month_child.x, 
+    pardi.parent.pre.gain_weight_child_maintain.x, 
+    pardi.parent.pre.receiving_tube_feeding_child.x,
+    pardi.parent.pre.college_day_home_work.x, 
+    pardi.parent.pre.interactions_people_eating_difficulties.x, 
+    pardi.parent.pre.difficult_social_situations_social.x, 
+    pardi.parent.pre.taste_variation_sensitive_past.x, 
+    pardi.parent.pre.consistency_sensitive_past_month.x, 
+    pardi.parent.pre.appearance_sensitive_past_month.x, 
+    pardi.parent.pre.child_forgotten_forgotten_make.x, 
+    pardi.parent.pre.child_appeared_lack_enjoyment.x, 
+    pardi.parent.pre.stopped_eating_early_finished.x, 
+    pardi.parent.pre.affected_choking_pain_type.x, 
+    pardi.parent.pre.child_avoided_eating_situations.x,
+    pardi.parent.pre.child_expressed_panic_physical.x,
+    
+    pardi.parent.pre.measurement_select_preferred_unit.y, 
+    pardi.parent.pre.measurement_select_preferred_unit.1.y,
+    pardi.parent.pre.what_is_your_childs_height.y,
+    pardi.parent.pre.what_is_your_childs_height.1.y,
+    pardi.parent.pre.what_is_your_childs_height.2.y, 
+    pardi.parent.pre.what_is_your_childs_height.3.y,
+    pardi.parent.pre.what_is_your_childs_weight.1.y, 
+    pardi.parent.pre.what_is_your_childs_weight.2.y, 
+    pardi.parent.pre.what_is_your_childs_weight.3.y,
+    pardi.parent.pre.pace_difficulty_gaining_difficulty.y, 
+    pardi.parent.pre.child_eating_habits_led.y, 
+    pardi.parent.pre.health_professional_expected_told.y,
+    pardi.parent.pre.health_professional_eating_habits.y, 
+    pardi.parent.pre.nutrition_past_month_child.y, 
+    pardi.parent.pre.gain_weight_child_maintain.y, 
+    pardi.parent.pre.receiving_tube_feeding_child.y,
+    pardi.parent.pre.college_day_home_work.y, 
+    pardi.parent.pre.interactions_people_eating_difficulties.y, 
+    pardi.parent.pre.difficult_social_situations_social.y, 
+    pardi.parent.pre.taste_variation_sensitive_past.y, 
+    pardi.parent.pre.consistency_sensitive_past_month.y, 
+    pardi.parent.pre.appearance_sensitive_past_month.y, 
+    pardi.parent.pre.child_forgotten_forgotten_make.y, 
+    pardi.parent.pre.child_appeared_lack_enjoyment.y, 
+    pardi.parent.pre.stopped_eating_early_finished.y, 
+    pardi.parent.pre.affected_choking_pain_type.y, 
+    pardi.parent.pre.child_avoided_eating_situations.y,
+    pardi.parent.pre.child_expressed_panic_physical.y,
+    
+         #RCADS items
+    rcads.parent.pre.1._my_child_worries_about_things.x,
+    rcads.parent.pre.stomach_problem_child_funny.x, 
+    rcads.parent.pre.poorly_child_worries.x, 
+    rcads.parent.pre.child_feels_afraid_home.x,
+    rcads.parent.pre.child_feels_scared_taking.x, 
+    rcads.parent.pre.angry_child_worries.x, 
+    rcads.parent.pre.child_worries.x, 
+    rcads.parent.pre.badly_school_work_child.x,
+    rcads.parent.pre.awful_happen_family_child.x, 
+    rcads.parent.pre.child_suddenly_feels_breathe.x, 
+    rcads.parent.pre.child_feels_scared_sleep.x, 
+    rcads.parent.pre.mornings_afraid_trouble_school.x, 
+    rcads.parent.pre.20._my_child_worries_about_looking_foolish.x,
+    rcads.parent.pre.bad_things_happen_child.x, 
+    rcads.parent.pre.heart_beats_problem_child.x, 
+    rcads.parent.pre.child_suddenly_starts_shake.x,
+    rcads.parent.pre.happen_bad_child_worries.x, 
+    rcads.parent.pre.problem_child_feel_shaky.x, 
+    rcads.parent.pre.30._my_child_worries_about_making_mistakes.x,
+    rcads.parent.pre.child_worries_people.x, 
+    rcads.parent.pre.afraid_child_crowded_places.x, 
+    rcads.parent.pre.scared_sudden_reason_feel.x, 
+    rcads.parent.pre.happen_child_worries.x, 
+    rcads.parent.pre.child_suddenly_dizzy_faint.x,
+    rcads.parent.pre.37._my_child_thinks_about_death.x,
+    rcads.parent.pre.talk_child_feels_afraid.x, 
+    rcads.parent.pre.heart_suddenly_starts_beat.x, 
+    rcads.parent.pre.scared_feeling_suddenly_afraid.x, 
+    rcads.parent.pre.fool_child_feels_afraid.x, 
+    rcads.parent.pre.bed_child_worries_night.x, 
+    rcads.parent.pre.feel_scared_stay_child.x, 
+    
+    rcads.parent.pre.1._my_child_worries_about_things.y,
+    rcads.parent.pre.stomach_problem_child_funny.y, 
+    rcads.parent.pre.poorly_child_worries.y, 
+    rcads.parent.pre.child_feels_afraid_home.y,
+    rcads.parent.pre.child_feels_scared_taking.y, 
+    rcads.parent.pre.angry_child_worries.y, 
+    rcads.parent.pre.child_worries.y, 
+    rcads.parent.pre.badly_school_work_child.y,
+    rcads.parent.pre.awful_happen_family_child.y, 
+    rcads.parent.pre.child_suddenly_feels_breathe.y, 
+    rcads.parent.pre.child_feels_scared_sleep.y, 
+    rcads.parent.pre.mornings_afraid_trouble_school.y, 
+    rcads.parent.pre.20._my_child_worries_about_looking_foolish.y,
+    rcads.parent.pre.bad_things_happen_child.y, 
+    rcads.parent.pre.heart_beats_problem_child.y, 
+    rcads.parent.pre.child_suddenly_starts_shake.y,
+    rcads.parent.pre.happen_bad_child_worries.y, 
+    rcads.parent.pre.problem_child_feel_shaky.y, 
+    rcads.parent.pre.30._my_child_worries_about_making_mistakes.y,
+    rcads.parent.pre.child_worries_people.y, 
+    rcads.parent.pre.afraid_child_crowded_places.y, 
+    rcads.parent.pre.scared_sudden_reason_feel.y, 
+    rcads.parent.pre.happen_child_worries.y, 
+    rcads.parent.pre.child_suddenly_dizzy_faint.y,
+    rcads.parent.pre.37._my_child_thinks_about_death.y,
+    rcads.parent.pre.talk_child_feels_afraid.y, 
+    rcads.parent.pre.heart_suddenly_starts_beat.y, 
+    rcads.parent.pre.scared_feeling_suddenly_afraid.y, 
+    rcads.parent.pre.fool_child_feels_afraid.y, 
+    rcads.parent.pre.bed_child_worries_night.y, 
+    rcads.parent.pre.feel_scared_stay_child.y,
+         #31
+         
+         #Current View Tool 
+                                                  
+    currentview.cl.pre.1.anxious_away_from_caregivers = CV.problem1,                                  
+    currentview.cl.pre.2.anxious_in_social_situations = CV.problem2,  
+    currentview.cl.pre.3.anxious_generally = CV.problem3,  
+    currentview.cl.pre.5.panics = CV.problem5,    
+    currentview.cl.pre.6.avoids_going_out = CV.problem6, 
+    currentview.cl.pre.7.avoids_specific_things = CV.problem7,                                          
+    currentview.cl.pre.5_pervasive_developmental_disorders = CV.c_factor5 
+         #7
+         )) %>%
+  add_numeric(exclude = exclude_cols_dem)
+```
+
+Check this worked by checking duplicate IDs 
+```{r Identify duplicates in tibble}
+arfid_dat$ARFID_ID_dup2<- duplicated(arfid_dat$ARFID_ID)
+
+summary(as.factor(arfid_dat$ARFID_ID_dup2))
+```
+
+```{r}
+arfid_dat %>%
+  select(
+    ARFID_ID,
+    ARFID_ID_dup2
+  ) %>%
+  filter(
+    ARFID_ID_dup2 == TRUE
+  )
+```
+It worked, there are no duplicated IDs
+
+
+Add suffix 'unc' to all variables to show that they are uncleaned. 
+```{r _unc}
+to_exclude = "ARFID_ID"
+
+arfid_dat <- arfid_dat %>%
+  rename_at(vars(-one_of(to_exclude)), ~ paste0(., "_unc"))
+
+#Inspect data column names
+
+arfid_dat %>% 
+  colnames()
+```
+
+
+Convert missing data to NAs
+```{r convert missing data to NA}
+arfid_dat <- arfid_dat %>% 
+  mutate_if(is.numeric, ~na_if(.,-88)) %>% 
+  mutate_if(is.numeric, ~na_if(.,-99)) %>% 
+  mutate_if(is.numeric, ~na_if(.,-77)) %>% 
+  mutate_if(is.numeric, ~na_if(.,888)) %>%
+  mutate_if(is.numeric, ~na_if(.,999)) %>%
+  mutate_if(is.numeric, ~na_if(.,"n/a")) %>%
+  mutate_if(is.character, ~na_if(.,-88)) %>% 
+  mutate_if(is.character, ~na_if(.,-99)) %>%
+  mutate_if(is.character, ~na_if(.,-77)) %>% 
+  mutate_if(is.character, ~na_if(.,888)) %>% 
+  mutate_if(is.character, ~na_if(.,999)) %>% 
+  mutate_if(is.character, ~na_if(.,"n/a")) %>% 
+  mutate_if(is.character, ~na_if(.,"Other"))
+```
+
+
+#Inspect the dataset
+
+Inspect Clinician measure Columns: 
+Current View
+```{r current view frequency}
+arfid_dat %>%
+  select(starts_with("currentview")) %>%
+  freq()
+```
+
+Clinician demographics: 
+
+F80.82 - is this a typo? 
+Social pragmatic communication disorder 
+
+```{r ARFID diagnoses}
+arfid_dat %>% 
+  select(Dx_DSM5_unc,
+         Dx_ICD10_unc,
+         FED_Diagnosis_unc, 
+         ARFID_diagnosis_unc,
+         dem.cl.pre.307.59_avoidantrestrictive_food_intake_disorder_unc, 
+         dem.cl.pre.dsm5_fed_diagnosis__subthreshold_or_full_unc, 
+         dem.cl.pre.icd11fed_diagnosis__subthreshold_or_full_unc) %>% 
+  freq()
+```
+
+Sent F80.82 to clinicians for clarification on diagnosis. 
+
+```{r ASD diagnosis}
+arfid_dat %>% 
+  select(ASD_Diagnosis_unc,
+         Dx_ICD10_1_unc, 
+         currentview.cl.pre.5_pervasive_developmental_disorders_unc, 
+         dem.cl.pre.asd_diagnosis_unc) %>% 
+  freq()
+```
+
+
+Examine child's sex
+```{r child's sex}
+arfid_dat %>% 
+  select(c(ARFID_ID, 
+           Sex_unc, 
+           child.parent.pre.biological_sex_of_your_child_at_birth.x_unc, 
+           child.parent.pre.biological_sex_of_your_child_at_birth.y_unc))
+```
+child.parent.pre.biological_sex_of_your_child_at_birth.x_unc - needs recoding
+
+
+Examine age
+```{r child's age}
+arfid_dat%>%
+  select(child.parent.pre.age_yrs_dec_unc, 
+        child.parent.pre.age_yrs_unc) %>% 
+  descr()
+```
+
+Age range
+Merge
+min = 0, max = 17.75 
+Set age range
+Does CAMHS settings range from 4 - 18 years? (PARDI measure is appropriate for 4 years +)
+After discussion with clinician team, they told us that some patients are younger than 4 years
+
+Age group
+```{r child's age group}
+arfid_dat %>%
+  freq(age.parent.pre.please_choose_young_persons_age_group_unc)
+
+#needs recoding
+```
+
+Examine the frequency of RCADS responses. 
+```{r RCADS}
+dat %>%
+  select(starts_with("rcads.parent.pre")) %>%
+  freq()
+```
+
+
+# Combine colulms
+
+When datasets were merged, Qualtrics data created a new column (ending .x) and variable names changed in the other data (ending .y)
+Need to combine these columns to create a column of all data
+
+
+##Child's biological sex
+Qualtrics data (.x) needs recoding to correspond with 
+child.parent.pre.biological_sex_of_your_child_at_birth.y
+
+`0` = "Male",
+`1` = "Female"
+
+```{r recode and manually inspect sex}
+arfid_dat <- arfid_dat %>% 
+  mutate(child.parent.pre.biological_sex_of_your_child_at_birth.x_unc = 
+           recode(child.parent.pre.biological_sex_of_your_child_at_birth.x_unc, 
+                  '1' = "0", 
+                  '2' = "1") %>% 
+           as.numeric())
+
+arfid_dat <- arfid_dat %>% 
+  mutate(Sex_unc = as.numeric(Sex_unc))
+
+
+
+#Manually check each ID to ensure it corresponds!
+arfid_dat %>% 
+  select(ARFID_ID,
+         child.parent.pre.biological_sex_of_your_child_at_birth.x_unc, 
+         child.parent.pre.biological_sex_of_your_child_at_birth.y_unc, 
+         Sex_unc) 
+
+#There are several ARFID's where the sex reporting doesn't correspond:
+# +++ AR19005, AR20009, AR20013, AR21021, AR21043 - check this with clinical team
+```
+       
+Filter non-corresponding sex reportings and write as excel. 
+Send to ARFID clinical team at SLaM to check
+```{r filter and write excel - sex}
+
+sex <- arfid_dat %>% 
+  select(ARFID_ID,
+         child.parent.pre.biological_sex_of_your_child_at_birth.x_unc, 
+         child.parent.pre.biological_sex_of_your_child_at_birth.y_unc, 
+         Sex_unc) %>% 
+  filter(ARFID_ID == "AR19005" | 
+           ARFID_ID == "AR20009" | 
+           ARFID_ID == "AR20013" | 
+           ARFID_ID == "AR21021" | 
+           ARFID_ID == "AR21043")
+
+
+write.xlsx(
+  sex,
+  file = paste0("ARFID_IDs_sex", date, ".xlsx"),
+  sheetName = "Sheet2",
+  col.names = TRUE,
+  row.names = TRUE,
+  append = FALSE,
+  showNA = TRUE,
+  password = NULL
+)
+```
+                    
+Create an overall sex
+```{r combine child sex}
+arfid_dat <- arfid_dat %>%
+  mutate(
+    child.parent.pre.biological_sex_of_your_child_at_birth_binary_numeric = 
+      case_when(
+             child.parent.pre.biological_sex_of_your_child_at_birth.x_unc == 0 |
+               child.parent.pre.biological_sex_of_your_child_at_birth.y_unc == 0 | 
+               Sex_unc == 0 ~ 0, 
+             child.parent.pre.biological_sex_of_your_child_at_birth.x_unc == 1 |
+               child.parent.pre.biological_sex_of_your_child_at_birth.y_unc == 1 | 
+               Sex_unc == 1 ~ 1,
+              TRUE ~ as.numeric(
+                child.parent.pre.biological_sex_of_your_child_at_birth.x_unc |
+                  child.parent.pre.biological_sex_of_your_child_at_birth.y_unc | 
+                  Sex_unc)
+             )
+    )
+
+arfid_dat %>%
+  freq(child.parent.pre.biological_sex_of_your_child_at_birth_binary_numeric)
+```
+
+Need to recode AR20013 to female and AR21043 as female (1) 
+Based up clinician clarification
+
+```{r recode incorrect reportings}
+arfid_dat <- arfid_dat %>%
+  mutate(recode_sex = 
+           if_else(ARFID_ID == "AR20013" | 
+           ARFID_ID == "AR21043", 
+           true = 1, 
+           false = child.parent.pre.biological_sex_of_your_child_at_birth_binary_numeric, 
+           missing = NA_real_))
+  
+#Check this worked
+
+arfid_dat %>% 
+  select(ARFID_ID, 
+         recode_sex, 
+         child.parent.pre.biological_sex_of_your_child_at_birth_binary_numeric) %>% 
+  filter(ARFID_ID == "AR19005" | 
+           ARFID_ID == "AR20009" | 
+           ARFID_ID == "AR20013" | 
+           ARFID_ID == "AR21021" | 
+           ARFID_ID == "AR21043")
+```
+
+
+##Child's age
+```{r manually check age}
+arfid_dat %>% 
+  select(ARFID_ID, 
+         child.parent.pre.age_yrs_dec_unc, 
+         child.parent.pre.age_yrs_unc)
+
+
+```
+We use child.parent.pre.age_yrs_dec_unc - complete dataset
+The data entries have been manually checked
+
+##PARDI
+
+###Height and weight
+
+```{r recode weight measurement}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.measurement_select_preferred_unit.x_numeric_unc = 
+           recode(pardi.parent.pre.measurement_select_preferred_unit.x_numeric_unc, 
+                  '1' = "0", 
+                  '2' = "1", 
+                  '3' = "2") %>% 
+           as.numeric()
+         )
+
+
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.measurement_select_preferred_unit.y_numeric_unc = 
+           recode(pardi.parent.pre.measurement_select_preferred_unit.y_numeric_unc, 
+                  '0' = "0", 
+                  '1' = "1", 
+                  '2' = "2", 
+                  'NA' = NA_character_
+                  ) %>% 
+           as.numeric()
+         )
+
+arfid_dat %>% 
+  select(pardi.parent.pre.measurement_select_preferred_unit.x_numeric_unc, 
+         pardi.parent.pre.measurement_select_preferred_unit.y_numeric_unc) %>% 
+  freq()
+```
+
+Combine the two weight measurement columns
+```{r combine weight measurement}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.measurement_select_preferred_unit_weight_numeric =
+         case_when( 
+           pardi.parent.pre.measurement_select_preferred_unit.x_numeric_unc == 0 |
+             pardi.parent.pre.measurement_select_preferred_unit.y_numeric_unc == 0 ~ 0, 
+           pardi.parent.pre.measurement_select_preferred_unit.x_numeric_unc == 1 |
+             pardi.parent.pre.measurement_select_preferred_unit.y_numeric_unc == 1 ~ 1,
+           pardi.parent.pre.measurement_select_preferred_unit.x_numeric_unc == 2 |
+             pardi.parent.pre.measurement_select_preferred_unit.y_numeric_unc == 2 ~ 2, 
+           TRUE ~ as.numeric(pardi.parent.pre.measurement_select_preferred_unit.x_numeric_unc |
+             pardi.parent.pre.measurement_select_preferred_unit.y_numeric_unc)))
+
+#Recode as factor: 
+
+arfid_dat <- arfid_dat %>%
+  mutate(pardi.parent.pre.measurement_select_preferred_unit_weight = 
+  recode_factor(
+    pardi.parent.pre.measurement_select_preferred_unit_weight_numeric, 
+    '0' = "Pounds (lbs)",
+    '1' = "Kilograms (kg)", 
+    '2' = "Stones and pounds (lbs)"))
+
+
+arfid_dat %>%
+  freq(pardi.parent.pre.measurement_select_preferred_unit_weight)
+```
+
+Recode heigt measurement
+```{r recode height measurement}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.measurement_select_preferred_unit.1.x_numeric_unc = 
+           recode(pardi.parent.pre.measurement_select_preferred_unit.1.x_numeric_unc, 
+                  '1' = "0", 
+                  '2' = "1") %>% 
+           as.numeric())
+
+
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.measurement_select_preferred_unit.1.y_numeric_unc = 
+           recode(pardi.parent.pre.measurement_select_preferred_unit.1.y_numeric_unc, 
+                  '0' = "0", 
+                  '1' = "1", 
+                  'NA' = NA_character_) %>% 
+           as.numeric())
+
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.measurement_select_preferred_unit.1.x_numeric_unc, 
+         pardi.parent.pre.measurement_select_preferred_unit.1.y_numeric_unc) %>% 
+  freq()
+```
+
+Combine the two height measurement columns 
+```{r combine height measurement}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.measurement_select_preferred_unit_height_numeric =
+         case_when( 
+           pardi.parent.pre.measurement_select_preferred_unit.1.x_numeric_unc == 0 |
+             pardi.parent.pre.measurement_select_preferred_unit.1.y_numeric_unc == 0 ~ 0, 
+           pardi.parent.pre.measurement_select_preferred_unit.1.x_numeric_unc == 1 |
+             pardi.parent.pre.measurement_select_preferred_unit.1.y_numeric_unc == 1 ~ 1,
+           TRUE ~ as.numeric(pardi.parent.pre.measurement_select_preferred_unit.1.x_numeric_unc |
+             pardi.parent.pre.measurement_select_preferred_unit.1.y_numeric_unc)))
+
+#Recode as factor: 
+
+arfid_dat <- arfid_dat %>%
+  mutate(pardi.parent.pre.measurement_select_preferred_unit_height = 
+  recode_factor(
+    pardi.parent.pre.measurement_select_preferred_unit_height_numeric, 
+    '0' = "Metres and centimetres (m and cm)",
+    '1' = "Feet and inches"))
+
+
+arfid_dat %>%
+  freq(pardi.parent.pre.measurement_select_preferred_unit_height)
+```
+
+Combine weight 
+
+Case_when does not work for continuous variables
+Use coalesce from dplyr
+https://www.rdocumentation.org/packages/dplyr/versions/0.7.8/topics/coalesce
+
+```{r combine height}
+
+#Both need to be character to combine 
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.what_is_your_childs_height.y_unc = 
+           as.character(pardi.parent.pre.what_is_your_childs_height.y_unc)) 
+  
+#Combine using dplyr coalesce
+
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.what_is_your_childs_height_unc = 
+           coalesce(pardi.parent.pre.what_is_your_childs_height.x_unc, 
+                    pardi.parent.pre.what_is_your_childs_height.y_unc) %>% 
+           as.character())
+  
+#check it worked - IT DID! 
+
+arfid_dat %>% 
+  select(
+  pardi.parent.pre.what_is_your_childs_height_unc, 
+  pardi.parent.pre.what_is_your_childs_height.x_unc, 
+  pardi.parent.pre.what_is_your_childs_height.y_unc) %>% 
+  freq()
+```
+
+```{r combine height 1}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.what_is_your_childs_height.1.y_unc = 
+           as.character(pardi.parent.pre.what_is_your_childs_height.1.y_unc)) 
+  
+#Combine using dplyr coalesce
+
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.what_is_your_childs_height.1_unc = 
+           coalesce(pardi.parent.pre.what_is_your_childs_height.1.x_unc, 
+                    pardi.parent.pre.what_is_your_childs_height.1.y_unc) %>% 
+           as.character())
+  
+#check it worked - IT DID! 
+
+arfid_dat %>% 
+  select(
+  pardi.parent.pre.what_is_your_childs_height.1_unc, 
+  pardi.parent.pre.what_is_your_childs_height.1.x_unc, 
+  pardi.parent.pre.what_is_your_childs_height.1.y_unc) %>% 
+  freq()
+```
+
+
+
+```{r combine height 2}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.what_is_your_childs_height.2.y_unc = 
+           as.character(pardi.parent.pre.what_is_your_childs_height.2.y_unc)) 
+
+
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.what_is_your_childs_height.2_unc = 
+           coalesce(pardi.parent.pre.what_is_your_childs_height.2.x_unc, 
+                    pardi.parent.pre.what_is_your_childs_height.2.y_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.what_is_your_childs_height.2_unc,
+  pardi.parent.pre.what_is_your_childs_height.2.x_unc,
+  pardi.parent.pre.what_is_your_childs_height.2.y_unc) %>% 
+  freq()
+```
+
+
+```{r combine height 3}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.what_is_your_childs_height.3.y_unc = 
+           as.character(pardi.parent.pre.what_is_your_childs_height.3.y_unc)) 
+
+
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.what_is_your_childs_height.3_unc = 
+           coalesce(pardi.parent.pre.what_is_your_childs_height.3.x_unc, 
+                    pardi.parent.pre.what_is_your_childs_height.3.y_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.what_is_your_childs_height.3_unc,
+  pardi.parent.pre.what_is_your_childs_height.3.x_unc,
+  pardi.parent.pre.what_is_your_childs_height.3.y_unc) %>% 
+  freq()
+```
+
+Combine weight variables
+```{r combine weight 1}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.what_is_your_childs_weight.1.y_unc = 
+           as.character(pardi.parent.pre.what_is_your_childs_weight.1.y_unc)) 
+
+
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.what_is_your_childs_weight.1_unc = 
+           coalesce(pardi.parent.pre.what_is_your_childs_weight.1.x_unc, 
+                    pardi.parent.pre.what_is_your_childs_weight.1.y_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.what_is_your_childs_weight.1_unc,
+  pardi.parent.pre.what_is_your_childs_weight.1.x_unc,
+  pardi.parent.pre.what_is_your_childs_weight.1.y_unc) %>% 
+  freq()
+```
+
+
+```{r combine weight 2}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.what_is_your_childs_weight.2_unc = 
+           coalesce(pardi.parent.pre.what_is_your_childs_weight.2.x_unc, 
+                    pardi.parent.pre.what_is_your_childs_weight.2.y_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.what_is_your_childs_weight.2_unc,
+  pardi.parent.pre.what_is_your_childs_weight.2.x_unc,
+  pardi.parent.pre.what_is_your_childs_weight.2.y_unc) %>% 
+  freq()
+```
+
+
+```{r combine weight 3}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.what_is_your_childs_weight.3_unc = 
+           coalesce(pardi.parent.pre.what_is_your_childs_weight.3.x_unc, 
+                    pardi.parent.pre.what_is_your_childs_weight.3.y_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.what_is_your_childs_weight.3_unc,
+  pardi.parent.pre.what_is_your_childs_weight.3.x_unc,
+  pardi.parent.pre.what_is_your_childs_weight.3.y_unc) %>% 
+  freq()
+```
+
+
+Check height 
+```{r check height variables}
+arfid_dat %>% 
+  select(pardi.parent.pre.measurement_select_preferred_unit_height,
+         pardi.parent.pre.what_is_your_childs_height_unc, 
+         pardi.parent.pre.what_is_your_childs_height.1_unc, 
+         pardi.parent.pre.what_is_your_childs_height.2_unc, 
+         pardi.parent.pre.what_is_your_childs_height.3_unc) 
+```
+
+
+Check weight
+```{r check weight variables}
+arfid_dat %>% 
+  select(pardi.parent.pre.measurement_select_preferred_unit_weight,
+         pardi.parent.pre.what_is_your_childs_weight_unc, 
+         pardi.parent.pre.what_is_your_childs_weight.1_unc, 
+         pardi.parent.pre.what_is_your_childs_weight.2_unc, 
+         pardi.parent.pre.what_is_your_childs_weight.3_unc) 
+```
+
+
+###PARDI diagnostic criteria 
+```{r variable names}
+
+#"pardi.parent.pre.pace_difficulty_gaining_difficulty_numeric_unc", #failure to gain weight
+#"pardi.parent.pre.child_eating_habits_led_numeric_unc", #child has lost weight
+#"pardi.parent.pre.health_professional_expected_told_numeric_unc", #not growing as expected
+#"pardi.parent.pre.health_professional_eating_habits_numeric_unc", #nutritional defiency
+#"pardi.parent.pre.nutrition_past_month_child_numeric_unc", #nutritional oral supplement
+#"pardi.parent.pre.gain_weight_child_maintain_numeric_unc", #weight oral supplement
+#"pardi.parent.pre.receiving_tube_feeding_child_numeric_unc",  #tube feeding
+#"pardi.parent.pre.college_day_home_work_numeric_unc"))  %>%    #psychosocial impairment
+
+```
+
+```{r difficulty maintaining weight}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.pace_difficulty_gaining_difficulty_numeric_unc = 
+           coalesce(pardi.parent.pre.pace_difficulty_gaining_difficulty.x_numeric_unc,
+                    pardi.parent.pre.pace_difficulty_gaining_difficulty.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.pace_difficulty_gaining_difficulty_numeric_unc,
+         pardi.parent.pre.pace_difficulty_gaining_difficulty.x_numeric_unc, 
+         pardi.parent.pre.pace_difficulty_gaining_difficulty.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r lost weight}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.child_eating_habits_led_numeric_unc = 
+           coalesce(pardi.parent.pre.child_eating_habits_led.x_numeric_unc, 
+         pardi.parent.pre.child_eating_habits_led.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.child_eating_habits_led_numeric_unc,
+         pardi.parent.pre.child_eating_habits_led.x_numeric_unc, 
+         pardi.parent.pre.child_eating_habits_led.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r slow growth}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.health_professional_expected_told_numeric_unc = 
+           coalesce(pardi.parent.pre.health_professional_expected_told.x_numeric_unc, 
+         pardi.parent.pre.health_professional_expected_told.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.health_professional_expected_told_numeric_unc,
+         pardi.parent.pre.health_professional_expected_told.x_numeric_unc, 
+         pardi.parent.pre.health_professional_expected_told.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r nutritional deficiency}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.health_professional_eating_habits_numeric_unc = 
+           coalesce(pardi.parent.pre.health_professional_eating_habits.x_numeric_unc, 
+         pardi.parent.pre.health_professional_eating_habits.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.health_professional_eating_habits_numeric_unc,
+         pardi.parent.pre.health_professional_eating_habits.x_numeric_unc, 
+         pardi.parent.pre.health_professional_eating_habits.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r nutritional supplement}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.nutrition_past_month_child_numeric_unc = 
+           coalesce(pardi.parent.pre.nutrition_past_month_child.x_numeric_unc, 
+         pardi.parent.pre.nutrition_past_month_child.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.nutrition_past_month_child_numeric_unc,
+         pardi.parent.pre.nutrition_past_month_child.x_numeric_unc, 
+         pardi.parent.pre.nutrition_past_month_child.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r weight supplement}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.gain_weight_child_maintain_numeric_unc = 
+           coalesce(pardi.parent.pre.gain_weight_child_maintain.x_numeric_unc, 
+         pardi.parent.pre.gain_weight_child_maintain.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.gain_weight_child_maintain_numeric_unc,
+         pardi.parent.pre.gain_weight_child_maintain.x_numeric_unc, 
+         pardi.parent.pre.gain_weight_child_maintain.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r tube feeding}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.receiving_tube_feeding_child_numeric_unc = 
+           coalesce(pardi.parent.pre.receiving_tube_feeding_child.x_numeric_unc, 
+         pardi.parent.pre.receiving_tube_feeding_child.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.receiving_tube_feeding_child_numeric_unc,
+         pardi.parent.pre.receiving_tube_feeding_child.x_numeric_unc, 
+         pardi.parent.pre.receiving_tube_feeding_child.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r psychosocial impairment}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.college_day_home_work_numeric_unc = 
+           coalesce(pardi.parent.pre.college_day_home_work.x_numeric_unc, 
+         pardi.parent.pre.college_day_home_work.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.college_day_home_work_numeric_unc,
+         pardi.parent.pre.college_day_home_work.x_numeric_unc, 
+         pardi.parent.pre.college_day_home_work.y_numeric_unc) %>% 
+  freq()
+```
+
+
+### PARDI scale: 
+```{r variable names}
+ #"pardi.parent.pre.interactions_people_eating_difficulties_numeric_unc",
+ #"pardi.parent.pre.difficult_social_situations_social_numeric_unc", 
+ #"pardi.parent.pre.taste_variation_sensitive_past_numeric_unc", 
+ #"pardi.parent.pre.consistency_sensitive_past_month_numeric_unc", 
+ #"pardi.parent.pre.appearance_sensitive_past_month_numeric_unc", 
+ #"pardi.parent.pre.child_forgotten_forgotten_make_numeric_unc", 
+ #"pardi.parent.pre.child_appeared_lack_enjoyment_numeric_unc", 
+ #"pardi.parent.pre.stopped_eating_early_finished_numeric_unc", 
+ #"pardi.parent.pre.affected_choking_pain_type_numeric_unc", 
+ #"pardi.parent.pre.child_avoided_eating_situations_numeric_unc",
+ #"pardi.parent.pre.child_expressed_panic_physical_numeric_unc"
+```
+
+```{r difficulty interactions}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.interactions_people_eating_difficulties_numeric_unc = 
+           coalesce(pardi.parent.pre.interactions_people_eating_difficulties.x_numeric_unc, 
+         pardi.parent.pre.interactions_people_eating_difficulties.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.interactions_people_eating_difficulties_numeric_unc,
+         pardi.parent.pre.interactions_people_eating_difficulties.x_numeric_unc, 
+         pardi.parent.pre.interactions_people_eating_difficulties.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r difficulty social}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.difficult_social_situations_social_numeric_unc = 
+           coalesce(pardi.parent.pre.difficult_social_situations_social.x_numeric_unc, 
+         pardi.parent.pre.difficult_social_situations_social.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.difficult_social_situations_social_numeric_unc,
+         pardi.parent.pre.difficult_social_situations_social.x_numeric_unc, 
+         pardi.parent.pre.difficult_social_situations_social.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r sensory taste}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.taste_variation_sensitive_past_numeric_unc = 
+           coalesce(pardi.parent.pre.taste_variation_sensitive_past.x_numeric_unc, 
+         pardi.parent.pre.taste_variation_sensitive_past.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.taste_variation_sensitive_past_numeric_unc,
+         pardi.parent.pre.taste_variation_sensitive_past.x_numeric_unc, 
+         pardi.parent.pre.taste_variation_sensitive_past.y_numeric_unc) %>% 
+  freq()
+```
+
++++CH: There is zero missing?
+Checked - there was a participant with reporting in both columns so it dropped one response. 
+
+```{r}
+arfid_dat %>%
+  select(
+         pardi.parent.pre.taste_variation_sensitive_past.x_numeric_unc, 
+         pardi.parent.pre.taste_variation_sensitive_past.y_numeric_unc) %>%
+  filter(
+    is.na(pardi.parent.pre.taste_variation_sensitive_past.x_numeric_unc) &
+      is.na(pardi.parent.pre.taste_variation_sensitive_past.y_numeric_unc)
+  )
+```
+
+```{r}
+arfid_dat %>%
+  select(
+    ARFID_ID,
+         pardi.parent.pre.taste_variation_sensitive_past.x_numeric_unc, 
+         pardi.parent.pre.taste_variation_sensitive_past.y_numeric_unc) %>%
+  filter(
+    !is.na(pardi.parent.pre.taste_variation_sensitive_past.x_numeric_unc) &
+      !is.na(pardi.parent.pre.taste_variation_sensitive_past.y_numeric_unc)
+  )
+```
+
+```{r sensory consistency}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.consistency_sensitive_past_month_numeric_unc = 
+           coalesce(pardi.parent.pre.consistency_sensitive_past_month.x_numeric_unc, 
+         pardi.parent.pre.consistency_sensitive_past_month.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.consistency_sensitive_past_month_numeric_unc,
+         pardi.parent.pre.consistency_sensitive_past_month.x_numeric_unc, 
+         pardi.parent.pre.consistency_sensitive_past_month.y_numeric_unc) %>% 
+  freq()
+```
++++CH: Here is a 0 disappearing too?
+Same participant as before. 
+
+
+```{r sensory appearance}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.appearance_sensitive_past_month_numeric_unc = 
+           coalesce(pardi.parent.pre.appearance_sensitive_past_month.x_numeric_unc, 
+         pardi.parent.pre.appearance_sensitive_past_month.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.appearance_sensitive_past_month_numeric_unc,
+         pardi.parent.pre.appearance_sensitive_past_month.x_numeric_unc, 
+         pardi.parent.pre.appearance_sensitive_past_month.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r forgotten to eat}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.child_forgotten_forgotten_make_numeric_unc = 
+           coalesce(pardi.parent.pre.child_forgotten_forgotten_make.x_numeric_unc, 
+         pardi.parent.pre.child_forgotten_forgotten_make.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.child_forgotten_forgotten_make_numeric_unc,
+         pardi.parent.pre.child_forgotten_forgotten_make.x_numeric_unc, 
+         pardi.parent.pre.child_forgotten_forgotten_make.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r lacked enjoyment}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.child_appeared_lack_enjoyment_numeric_unc = 
+           coalesce(pardi.parent.pre.child_appeared_lack_enjoyment.x_numeric_unc, 
+         pardi.parent.pre.child_appeared_lack_enjoyment.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.child_appeared_lack_enjoyment_numeric_unc,
+         pardi.parent.pre.child_appeared_lack_enjoyment.x_numeric_unc, 
+         pardi.parent.pre.child_appeared_lack_enjoyment.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r stopped eating early}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.stopped_eating_early_finished_numeric_unc = 
+           coalesce(pardi.parent.pre.stopped_eating_early_finished.x_numeric_unc, 
+         pardi.parent.pre.stopped_eating_early_finished.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.stopped_eating_early_finished_numeric_unc,
+         pardi.parent.pre.stopped_eating_early_finished.x_numeric_unc, 
+         pardi.parent.pre.stopped_eating_early_finished.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r afraid choking}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.affected_choking_pain_type_numeric_unc = 
+           coalesce(pardi.parent.pre.affected_choking_pain_type.x_numeric_unc, 
+         pardi.parent.pre.affected_choking_pain_type.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.affected_choking_pain_type_numeric_unc,
+         pardi.parent.pre.affected_choking_pain_type.x_numeric_unc, 
+         pardi.parent.pre.affected_choking_pain_type.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r avoided eating}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.child_avoided_eating_situations_numeric_unc = 
+           coalesce(pardi.parent.pre.child_avoided_eating_situations.x_numeric_unc, 
+         pardi.parent.pre.child_avoided_eating_situations.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.child_avoided_eating_situations_numeric_unc,
+         pardi.parent.pre.child_avoided_eating_situations.x_numeric_unc, 
+         pardi.parent.pre.child_avoided_eating_situations.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r panic}
+arfid_dat <- arfid_dat %>% 
+  mutate(pardi.parent.pre.child_expressed_panic_physical_numeric_unc = 
+           coalesce(pardi.parent.pre.child_expressed_panic_physical.x_numeric_unc, 
+         pardi.parent.pre.child_expressed_panic_physical.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(pardi.parent.pre.child_expressed_panic_physical_numeric_unc,
+         pardi.parent.pre.child_expressed_panic_physical.x_numeric_unc, 
+         pardi.parent.pre.child_expressed_panic_physical.y_numeric_unc) %>% 
+  freq()
+```
+
+#RCADS
+combine data from rcads.x and rcads.y
+
+```{r variable names}
+#"rcads.parent.pre.1._my_child_worries_about_things_numeric_unc"
+#"rcads.parent.pre.stomach_problem_child_funny_numeric_unc"          
+#"rcads.parent.pre.poorly_child_worries_numeric_unc"                
+#"rcads.parent.pre.child_feels_afraid_home_numeric_unc"                   
+#"rcads.parent.pre.child_feels_scared_taking_numeric_unc"                 
+#"rcads.parent.pre.angry_child_worries_numeric_unc"                       
+#"rcads.parent.pre.child_worries_numeric_unc"                             
+#"rcads.parent.pre.badly_school_work_child_numeric_unc"                  
+#"rcads.parent.pre.awful_happen_family_child_numeric_unc"                 
+#"rcads.parent.pre.child_suddenly_feels_breathe_numeric_unc"             
+#"rcads.parent.pre.child_feels_scared_sleep_numeric_unc"               
+#"rcads.parent.pre.mornings_afraid_trouble_school_numeric_unc"            
+#"rcads.parent.pre.20._my_child_worries_about_looking_foolish_numeric_unc"
+#"rcads.parent.pre.bad_things_happen_child_numeric_unc"                   
+#"rcads.parent.pre.heart_beats_problem_child_numeric_unc"                 
+#"rcads.parent.pre.child_suddenly_starts_shake_numeric_unc"               
+#"rcads.parent.pre.happen_bad_child_worries_numeric_unc"                  
+#"rcads.parent.pre.problem_child_feel_shaky_numeric_unc"                  
+#"rcads.parent.pre.30._my_child_worries_about_making_mistakes_numeric_unc"
+#"rcads.parent.pre.child_worries_people_numeric_unc"                      
+#"rcads.parent.pre.afraid_child_crowded_places_numeric_unc"               
+#"rcads.parent.pre.scared_sudden_reason_feel_numeric_unc"                
+#"rcads.parent.pre.happen_child_worries_numeric_unc"                      
+#"rcads.parent.pre.child_suddenly_dizzy_faint_numeric_unc"                
+#"rcads.parent.pre.37._my_child_thinks_about_death_numeric_unc"           
+#"rcads.parent.pre.talk_child_feels_afraid_numeric_unc"                   
+#"rcads.parent.pre.heart_suddenly_starts_beat_numeric_unc"                
+#"rcads.parent.pre.scared_feeling_suddenly_afraid_numeric_unc"            
+#"rcads.parent.pre.fool_child_feels_afraid_numeric_unc" 
+#"rcads.parent.pre.bed_child_worries_night_numeric_unc"                   
+#"rcads.parent.pre.feel_scared_stay_child_numeric_unc"
+```
+
+```{r worries things 1}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.1._my_child_worries_about_things_numeric_unc = 
+           coalesce(rcads.parent.pre.1._my_child_worries_about_things.x_numeric_unc, 
+         rcads.parent.pre.1._my_child_worries_about_things.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.1._my_child_worries_about_things_numeric_unc,
+         rcads.parent.pre.1._my_child_worries_about_things.x_numeric_unc, 
+         rcads.parent.pre.1._my_child_worries_about_things.y_numeric_unc) %>% 
+  freq()
+
+```
+
+
+```{r stomach probs 2}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.stomach_problem_child_funny_numeric_unc = 
+           coalesce(rcads.parent.pre.stomach_problem_child_funny.x_numeric_unc, 
+         rcads.parent.pre.stomach_problem_child_funny.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.stomach_problem_child_funny_numeric_unc,
+         rcads.parent.pre.stomach_problem_child_funny.x_numeric_unc, 
+         rcads.parent.pre.stomach_problem_child_funny.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r poorly worries 3}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.poorly_child_worries_numeric_unc = 
+           coalesce(rcads.parent.pre.poorly_child_worries.x_numeric_unc, 
+         rcads.parent.pre.poorly_child_worries.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.poorly_child_worries_numeric_unc,
+         rcads.parent.pre.poorly_child_worries.x_numeric_unc, 
+         rcads.parent.pre.poorly_child_worries.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r afraid home 4}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.child_feels_afraid_home_numeric_unc = 
+           coalesce(rcads.parent.pre.child_feels_afraid_home.x_numeric_unc, 
+         rcads.parent.pre.child_feels_afraid_home.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.child_feels_afraid_home_numeric_unc,
+         rcads.parent.pre.child_feels_afraid_home.x_numeric_unc, 
+         rcads.parent.pre.child_feels_afraid_home.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r scared taking 5}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.child_feels_scared_taking_numeric_unc = 
+           coalesce(rcads.parent.pre.child_feels_scared_taking.x_numeric_unc, 
+         rcads.parent.pre.child_feels_scared_taking.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.child_feels_scared_taking_numeric_unc,
+         rcads.parent.pre.child_feels_scared_taking.x_numeric_unc, 
+         rcads.parent.pre.child_feels_scared_taking.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r angry worries 6}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.angry_child_worries_numeric_unc = 
+           coalesce(rcads.parent.pre.angry_child_worries.x_numeric_unc, 
+         rcads.parent.pre.angry_child_worries.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.angry_child_worries_numeric_unc,
+         rcads.parent.pre.angry_child_worries.x_numeric_unc, 
+         rcads.parent.pre.angry_child_worries.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r child worries 7}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.child_worries_numeric_unc = 
+           coalesce(rcads.parent.pre.child_worries.x_numeric_unc, 
+         rcads.parent.pre.child_worries.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.child_worries_numeric_unc,
+         rcads.parent.pre.child_worries.x_numeric_unc, 
+         rcads.parent.pre.child_worries.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r school work 8}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.badly_school_work_child_numeric_unc = 
+           coalesce(rcads.parent.pre.badly_school_work_child.x_numeric_unc, 
+         rcads.parent.pre.badly_school_work_child.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.badly_school_work_child_numeric_unc,
+         rcads.parent.pre.badly_school_work_child.x_numeric_unc, 
+         rcads.parent.pre.badly_school_work_child.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r awful happen family 9}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.awful_happen_family_child_numeric_unc = 
+           coalesce(rcads.parent.pre.awful_happen_family_child.x_numeric_unc, 
+         rcads.parent.pre.awful_happen_family_child.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.awful_happen_family_child_numeric_unc,
+         rcads.parent.pre.awful_happen_family_child.x_numeric_unc, 
+         rcads.parent.pre.awful_happen_family_child.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r feels breathe 10}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.child_suddenly_feels_breathe_numeric_unc = 
+           coalesce(rcads.parent.pre.child_suddenly_feels_breathe.x_numeric_unc, 
+         rcads.parent.pre.child_suddenly_feels_breathe.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.child_suddenly_feels_breathe_numeric_unc,
+         rcads.parent.pre.child_suddenly_feels_breathe.x_numeric_unc, 
+         rcads.parent.pre.child_suddenly_feels_breathe.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r scared sleep 11}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.child_feels_scared_sleep_numeric_unc = 
+           coalesce(rcads.parent.pre.child_feels_scared_sleep.x_numeric_unc, 
+         rcads.parent.pre.child_feels_scared_sleep.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.child_feels_scared_sleep_numeric_unc,
+         rcads.parent.pre.child_feels_scared_sleep.x_numeric_unc, 
+         rcads.parent.pre.child_feels_scared_sleep.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r afraid trouble 12}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.mornings_afraid_trouble_school_numeric_unc = 
+           coalesce(rcads.parent.pre.mornings_afraid_trouble_school.x_numeric_unc, 
+         rcads.parent.pre.mornings_afraid_trouble_school.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.mornings_afraid_trouble_school_numeric_unc,
+         rcads.parent.pre.mornings_afraid_trouble_school.x_numeric_unc, 
+         rcads.parent.pre.mornings_afraid_trouble_school.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r foolish 13}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.20._my_child_worries_about_looking_foolish_numeric_unc = 
+           coalesce(rcads.parent.pre.20._my_child_worries_about_looking_foolish.x_numeric_unc, 
+         rcads.parent.pre.20._my_child_worries_about_looking_foolish.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.20._my_child_worries_about_looking_foolish_numeric_unc,
+         rcads.parent.pre.20._my_child_worries_about_looking_foolish.x_numeric_unc, 
+         rcads.parent.pre.20._my_child_worries_about_looking_foolish.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r bad things 14}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.bad_things_happen_child_numeric_unc = 
+           coalesce(rcads.parent.pre.bad_things_happen_child.x_numeric_unc, 
+         rcads.parent.pre.bad_things_happen_child.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.bad_things_happen_child_numeric_unc,
+         rcads.parent.pre.bad_things_happen_child.x_numeric_unc, 
+         rcads.parent.pre.bad_things_happen_child.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r heart beats 15}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.heart_beats_problem_child_numeric_unc = 
+           coalesce(rcads.parent.pre.heart_beats_problem_child.x_numeric_unc, 
+         rcads.parent.pre.heart_beats_problem_child.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.heart_beats_problem_child_numeric_unc,
+         rcads.parent.pre.heart_beats_problem_child.x_numeric_unc, 
+         rcads.parent.pre.heart_beats_problem_child.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r shake 16}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.child_suddenly_starts_shake_numeric_unc = 
+           coalesce(rcads.parent.pre.child_suddenly_starts_shake.x_numeric_unc, 
+         rcads.parent.pre.child_suddenly_starts_shake.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.child_suddenly_starts_shake_numeric_unc,
+         rcads.parent.pre.child_suddenly_starts_shake.x_numeric_unc, 
+         rcads.parent.pre.child_suddenly_starts_shake.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r happen bad 17}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.happen_bad_child_worries_numeric_unc = 
+           coalesce(rcads.parent.pre.happen_bad_child_worries.x_numeric_unc, 
+         rcads.parent.pre.happen_bad_child_worries.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.happen_bad_child_worries_numeric_unc,
+         rcads.parent.pre.happen_bad_child_worries.x_numeric_unc, 
+         rcads.parent.pre.happen_bad_child_worries.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r shaky 18}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.problem_child_feel_shaky_numeric_unc = 
+           coalesce(rcads.parent.pre.problem_child_feel_shaky.x_numeric_unc, 
+         rcads.parent.pre.problem_child_feel_shaky.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.problem_child_feel_shaky_numeric_unc,
+         rcads.parent.pre.problem_child_feel_shaky.x_numeric_unc, 
+         rcads.parent.pre.problem_child_feel_shaky.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r mistakes 19}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.30._my_child_worries_about_making_mistakes_numeric_unc = 
+           coalesce(rcads.parent.pre.30._my_child_worries_about_making_mistakes.x_numeric_unc, 
+         rcads.parent.pre.30._my_child_worries_about_making_mistakes.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.30._my_child_worries_about_making_mistakes_numeric_unc,
+         rcads.parent.pre.30._my_child_worries_about_making_mistakes.x_numeric_unc, 
+         rcads.parent.pre.30._my_child_worries_about_making_mistakes.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r worries people 20}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.child_worries_people_numeric_unc = 
+           coalesce(rcads.parent.pre.child_worries_people.x_numeric_unc, 
+         rcads.parent.pre.child_worries_people.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.child_worries_people_numeric_unc,
+         rcads.parent.pre.child_worries_people.x_numeric_unc, 
+         rcads.parent.pre.child_worries_people.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r  crowded places 21}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.afraid_child_crowded_places_numeric_unc = 
+           coalesce(rcads.parent.pre.afraid_child_crowded_places.x_numeric_unc, 
+         rcads.parent.pre.afraid_child_crowded_places.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.afraid_child_crowded_places_numeric_unc,
+         rcads.parent.pre.afraid_child_crowded_places.x_numeric_unc, 
+         rcads.parent.pre.afraid_child_crowded_places.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r scared 22}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.scared_sudden_reason_feel_numeric_unc = 
+           coalesce(rcads.parent.pre.scared_sudden_reason_feel.x_numeric_unc, 
+         rcads.parent.pre.scared_sudden_reason_feel.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.scared_sudden_reason_feel_numeric_unc,
+         rcads.parent.pre.scared_sudden_reason_feel.x_numeric_unc, 
+         rcads.parent.pre.scared_sudden_reason_feel.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r worries happen 23}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.happen_child_worries_numeric_unc = 
+           coalesce(rcads.parent.pre.happen_child_worries.x_numeric_unc, 
+         rcads.parent.pre.happen_child_worries.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.happen_child_worries_numeric_unc,
+         rcads.parent.pre.happen_child_worries.x_numeric_unc, 
+         rcads.parent.pre.happen_child_worries.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r dizzy 24}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.child_suddenly_dizzy_faint_numeric_unc = 
+           coalesce(rcads.parent.pre.child_suddenly_dizzy_faint.x_numeric_unc, 
+         rcads.parent.pre.child_suddenly_dizzy_faint.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.child_suddenly_dizzy_faint_numeric_unc,
+         rcads.parent.pre.child_suddenly_dizzy_faint.x_numeric_unc, 
+         rcads.parent.pre.child_suddenly_dizzy_faint.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r death 25}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.37._my_child_thinks_about_death_numeric_unc = 
+           coalesce(rcads.parent.pre.37._my_child_thinks_about_death.x_numeric_unc, 
+         rcads.parent.pre.37._my_child_thinks_about_death.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.37._my_child_thinks_about_death_numeric_unc,
+         rcads.parent.pre.37._my_child_thinks_about_death.x_numeric_unc, 
+         rcads.parent.pre.37._my_child_thinks_about_death.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r talk afraid 26}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.talk_child_feels_afraid_numeric_unc = 
+           coalesce(rcads.parent.pre.talk_child_feels_afraid.x_numeric_unc, 
+         rcads.parent.pre.talk_child_feels_afraid.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.talk_child_feels_afraid_numeric_unc,
+         rcads.parent.pre.talk_child_feels_afraid.x_numeric_unc, 
+         rcads.parent.pre.talk_child_feels_afraid.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r heart suddenly 27}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.heart_suddenly_starts_beat_numeric_unc = 
+           coalesce(rcads.parent.pre.heart_suddenly_starts_beat.x_numeric_unc, 
+         rcads.parent.pre.heart_suddenly_starts_beat.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.heart_suddenly_starts_beat_numeric_unc,
+         rcads.parent.pre.heart_suddenly_starts_beat.x_numeric_unc, 
+         rcads.parent.pre.heart_suddenly_starts_beat.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r scared suddenly 28}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.scared_feeling_suddenly_afraid_numeric_unc = 
+           coalesce(rcads.parent.pre.scared_feeling_suddenly_afraid.x_numeric_unc, 
+         rcads.parent.pre.scared_feeling_suddenly_afraid.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.scared_feeling_suddenly_afraid_numeric_unc,
+         rcads.parent.pre.scared_feeling_suddenly_afraid.x_numeric_unc, 
+         rcads.parent.pre.scared_feeling_suddenly_afraid.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r fool 29}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.fool_child_feels_afraid_numeric_unc = 
+           coalesce(rcads.parent.pre.fool_child_feels_afraid.x_numeric_unc, 
+         rcads.parent.pre.fool_child_feels_afraid.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.fool_child_feels_afraid_numeric_unc,
+         rcads.parent.pre.fool_child_feels_afraid.x_numeric_unc, 
+         rcads.parent.pre.fool_child_feels_afraid.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r worries night 30}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.bed_child_worries_night_numeric_unc = 
+           coalesce(rcads.parent.pre.bed_child_worries_night.x_numeric_unc, 
+         rcads.parent.pre.bed_child_worries_night.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.bed_child_worries_night_numeric_unc,
+         rcads.parent.pre.bed_child_worries_night.x_numeric_unc, 
+         rcads.parent.pre.bed_child_worries_night.y_numeric_unc) %>% 
+  freq()
+```
+
+```{r scared stay 31}
+arfid_dat <- arfid_dat %>% 
+  mutate(rcads.parent.pre.feel_scared_stay_child_numeric_unc = 
+           coalesce(rcads.parent.pre.feel_scared_stay_child.x_numeric_unc, 
+         rcads.parent.pre.feel_scared_stay_child.y_numeric_unc))
+
+
+arfid_dat %>% 
+  select(rcads.parent.pre.feel_scared_stay_child_numeric_unc,
+         rcads.parent.pre.feel_scared_stay_child.x_numeric_unc, 
+         rcads.parent.pre.feel_scared_stay_child.y_numeric_unc) %>% 
+  freq()
+```
+
+##Check and save column names
+
+Check column names 
+```{r check column names}
+arfid_dat %>% 
+  colnames()
+```
+
+```{r select merged variables}
+merged_arfid_dat <- arfid_dat %>% 
+  select(c("ARFID_ID",             
+           "child.parent.pre.age_yrs_dec_unc",  
+           "age.parent.pre.please_choose_young_persons_age_group_unc",
+           "recode_sex",                 
+           "Dx_DSM5_unc",                                                              
+           "Dx_ICD10_unc",                                                             
+           "Dx_ICD10_1_unc",                                                           
+           "Dx_ICD10_2_unc",                                                           
+           "Dx_ICD10_3_unc",                                                           
+           "ASD_Diagnosis_unc",                                                        
+           "FED_Diagnosis_unc", 
+           "ARFID_diagnosis_unc",
+           "dem.cl.pre.307.59_avoidantrestrictive_food_intake_disorder_unc",           
+           "dem.cl.pre.dsm5_fed_diagnosis__subthreshold_or_full_unc",                  
+           "dem.cl.pre.asd_diagnosis_unc",                                             
+           "dem.cl.pre.icd11fed_diagnosis__subthreshold_or_full_unc",         
+           "child.parent.pre.biological_sex_of_your_child_at_birth_binary_numeric",            
+           "pardi.parent.pre.measurement_select_preferred_unit_weight_numeric",        
+           "pardi.parent.pre.measurement_select_preferred_unit_weight",                
+           "pardi.parent.pre.measurement_select_preferred_unit_height_numeric",        
+           "pardi.parent.pre.measurement_select_preferred_unit_height",                
+           "pardi.parent.pre.what_is_your_childs_height_unc",
+           "pardi.parent.pre.what_is_your_childs_height.1_unc",
+           "pardi.parent.pre.what_is_your_childs_height.2_unc",                        
+           "pardi.parent.pre.what_is_your_childs_height.3_unc", 
+           "pardi.parent.pre.what_is_your_childs_weight_unc",
+           "pardi.parent.pre.what_is_your_childs_weight.1_unc",                        
+           "pardi.parent.pre.what_is_your_childs_weight.2_unc",                        
+           "pardi.parent.pre.what_is_your_childs_weight.3_unc",                        
+           "pardi.parent.pre.pace_difficulty_gaining_difficulty_numeric_unc",          
+           "pardi.parent.pre.child_eating_habits_led_numeric_unc",                     
+           "pardi.parent.pre.health_professional_expected_told_numeric_unc",           
+           "pardi.parent.pre.health_professional_eating_habits_numeric_unc",           
+           "pardi.parent.pre.nutrition_past_month_child_numeric_unc",                  
+           "pardi.parent.pre.gain_weight_child_maintain_numeric_unc",                  
+           "pardi.parent.pre.receiving_tube_feeding_child_numeric_unc",                
+           "pardi.parent.pre.college_day_home_work_numeric_unc",  
+           "pardi.parent.pre.interactions_people_eating_difficulties_numeric_unc",     
+           "pardi.parent.pre.difficult_social_situations_social_numeric_unc",          
+           "pardi.parent.pre.taste_variation_sensitive_past_numeric_unc",              
+           "pardi.parent.pre.consistency_sensitive_past_month_numeric_unc",            
+           "pardi.parent.pre.appearance_sensitive_past_month_numeric_unc",             
+           "pardi.parent.pre.child_forgotten_forgotten_make_numeric_unc",              
+           "pardi.parent.pre.child_appeared_lack_enjoyment_numeric_unc",               
+           "pardi.parent.pre.stopped_eating_early_finished_numeric_unc",               
+           "pardi.parent.pre.affected_choking_pain_type_numeric_unc",                  
+           "pardi.parent.pre.child_avoided_eating_situations_numeric_unc",             
+           "pardi.parent.pre.child_expressed_panic_physical_numeric_unc",              
+           "rcads.parent.pre.1._my_child_worries_about_things_numeric_unc",            
+           "rcads.parent.pre.stomach_problem_child_funny_numeric_unc",                 
+           "rcads.parent.pre.poorly_child_worries_numeric_unc",                        
+           "rcads.parent.pre.child_feels_afraid_home_numeric_unc",                     
+           "rcads.parent.pre.child_feels_scared_taking_numeric_unc",                   
+           "rcads.parent.pre.angry_child_worries_numeric_unc",                         
+           "rcads.parent.pre.child_worries_numeric_unc",                               
+           "rcads.parent.pre.badly_school_work_child_numeric_unc",                     
+           "rcads.parent.pre.awful_happen_family_child_numeric_unc",                   
+           "rcads.parent.pre.child_suddenly_feels_breathe_numeric_unc",                
+           "rcads.parent.pre.child_feels_scared_sleep_numeric_unc",                    
+           "rcads.parent.pre.mornings_afraid_trouble_school_numeric_unc",              
+           "rcads.parent.pre.20._my_child_worries_about_looking_foolish_numeric_unc",  
+           "rcads.parent.pre.bad_things_happen_child_numeric_unc",                     
+           "rcads.parent.pre.heart_beats_problem_child_numeric_unc",                   
+           "rcads.parent.pre.child_suddenly_starts_shake_numeric_unc",                 
+           "rcads.parent.pre.happen_bad_child_worries_numeric_unc",                    
+           "rcads.parent.pre.problem_child_feel_shaky_numeric_unc",                    
+           "rcads.parent.pre.30._my_child_worries_about_making_mistakes_numeric_unc",  
+           "rcads.parent.pre.child_worries_people_numeric_unc",
+           "rcads.parent.pre.afraid_child_crowded_places_numeric_unc",                 
+           "rcads.parent.pre.scared_sudden_reason_feel_numeric_unc",                   
+           "rcads.parent.pre.happen_child_worries_numeric_unc",                        
+           "rcads.parent.pre.child_suddenly_dizzy_faint_numeric_unc",                  
+           "rcads.parent.pre.37._my_child_thinks_about_death_numeric_unc",             
+           "rcads.parent.pre.talk_child_feels_afraid_numeric_unc",                     
+           "rcads.parent.pre.heart_suddenly_starts_beat_numeric_unc",                  
+           "rcads.parent.pre.scared_feeling_suddenly_afraid_numeric_unc",              
+           "rcads.parent.pre.fool_child_feels_afraid_numeric_unc",                     
+           "rcads.parent.pre.bed_child_worries_night_numeric_unc",                     
+           "rcads.parent.pre.feel_scared_stay_child_numeric_unc",  
+           "currentview.cl.pre.1.anxious_away_from_caregivers_unc",                    
+           "currentview.cl.pre.2.anxious_in_social_situations_unc",                    
+           "currentview.cl.pre.3.anxious_generally_unc",                               
+           "currentview.cl.pre.5.panics_unc",                                          
+           "currentview.cl.pre.6.avoids_going_out_unc",                                
+           "currentview.cl.pre.7.avoids_specific_things_unc",                          
+           "currentview.cl.pre.5_pervasive_developmental_disorders_unc"))
+```
+
+Save merged datasets 
+```{r saved merged dataset}
+saveRDS(merged_arfid_dat, file = paste0("../data_raw/merged_arfid_data", date, ".rds"))
+```
