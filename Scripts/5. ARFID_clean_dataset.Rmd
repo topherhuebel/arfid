@@ -1,0 +1,180 @@
+---
+title: "Cleaned dataset for analysis"
+author: "Rosie Watts"
+date: "24/07/2021"
+output: html_document
+---
+
+#Set up R Markdown
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Clear Global Environment 
+```{r clear global environment}
+rm(list = ls(all.names = TRUE)) 
+```
+
+Set current date 
+```{r current date}
+date <- Sys.Date()
+```
+
+Install necessary packages
+```{r install packages}
+#install.packages("knitr")
+#install.packages("dplyr")
+#install.packages("summarytools")
+#install.packages("skimr")
+#install.packages("psych")
+#install.packages("gt")
+#install.packages("readxl")
+#install.packages("dplyr")
+#install.packages("tidyverse")
+
+```
+
+Load necessary packages 
+```{r load packages}
+library(knitr)
+library(summarytools)
+library(tidyverse)
+```
+
+Read in merged dataset
+```{r read in merged data}
+arfid_dat <- readRDS(file = "../data/ARFID_data_dem_PARDI_anx_cleaned2021-08-18.rds")
+```
+
+#Inspect dataset 
+```{r structure}
+arfid_dat %>% 
+  str()
+```
+
+```{r column names}
+arfid_dat %>% 
+  colnames()
+```
+
+
+Select all cleaned variables
+Use these for analyses
+```{r clean variable dataset}
+arfid_data_clean <- arfid_dat %>% 
+  select(c("ARFID_ID",
+           "child.parent.pre.biological_sex_of_your_child_at_birth_binary_numeric", 
+           "child.parent.pre.biological_sex_of_your_child_at_birth_binary",          
+           "child.parent.pre.age_yrs",                                               
+           "age.parent.pre.please_choose_young_persons_age_group_numeric",           
+           "age.parent.pre.please_choose_young_persons_age_group",    
+           "dem.cl.pre.dsm5_fed_diagnosis_ARFID",                                    
+           "dem.cl.pre.icd10_fed_diagnosis_ARFID",                                   
+           "FED_Diagnosis_ARFID_numeric",                                            
+           "arfid_diagnosis_numeric",                                                
+           "arfid_diagnosis",                                                        
+           "dem.cl.pre.ASD_diagnosis_numeric",                                       
+           "currentview.cl.pre.5_pervasive_developmental_disorders_numeric",         
+           "ASD_diagnosis_numeric",                                                  
+           "ASD_diagnosis",                                                          
+           "pardi.parent.pre.measurement_select_preferred_unit_weight_numeric",      
+           "pardi.parent.pre.measurement_select_preferred_unit_weight",              
+           "pardi.parent.pre.measurement_select_preferred_unit_height_numeric",      
+           "pardi.parent.pre.measurement_select_preferred_unit_height",        
+           "pardi.parent.pre.what_is_your_childs_height_metres",                     
+           "pardi.parent.pre.what_is_your_childs_weight_kg",                         
+           "pardi.parent.pre.current_bmi_child",                                     
+           "pardi.parent.pre.current_bmi_age_sds",                                   
+           "pardi.parent.pre.bmi_percentile",                                                
+           "pardi.parent.pre.pace_difficulty_gaining_difficulty_numeric",     
+           "pardi.parent.pre.pace_difficulty_gaining_difficulty_binary",             
+           "pardi.parent.pre.health_professional_expected_told_numeric",      
+           "pardi.parent.pre.health_professional_expected_told_binary",              
+           "pardi.parent.pre.child_eating_habits_led_numeric",                
+           "pardi.parent.pre.child_eating_habits_led_binary",                        
+           "pardi.parent.pre.health_professional_eating_habits_numeric",      
+           "pardi.parent.pre.health_professional_eating_habits_binary",              
+           "pardi.parent.pre.enteral_feeding_oral_supplement_binary_numeric",  
+           "pardi.parent.pre.enteral_feeding_oral_supplement_binary",                
+           "pardi.parent.pre.college_day_home_work_numeric",                  
+           "pardi.parent.pre.college_day_home_work_binary",                          
+           "pardi.parent.pre.interactions_people_eating_difficulties_numeric",       
+           "pardi.parent.pre.difficult_social_situations_social_numeric",            
+           "pardi.parent.pre.taste_variation_sensitive_past_numeric",                
+           "pardi.parent.pre.consistency_sensitive_past_month_numeric",              
+           "pardi.parent.pre.appearance_sensitive_past_month_numeric",              
+           "pardi.parent.pre.child_forgotten_forgotten_make_numeric",                
+           "pardi.parent.pre.child_appeared_lack_enjoyment_numeric",                 
+           "pardi.parent.pre.stopped_eating_early_finished_numeric",                 
+           "pardi.parent.pre.affected_choking_pain_type_numeric",                    
+           "pardi.parent.pre.child_avoided_eating_situations_numeric",               
+           "pardi.parent.pre.child_expressed_panic_physical_numeric",                
+           "pardi.parent.pre.interactions_people_eating_difficulties",               
+           "pardi.parent.pre.difficult_social_situations_social",                    
+           "pardi.parent.pre.taste_variation_sensitive_past",                        
+           "pardi.parent.pre.consistency_sensitive_past_month",                      
+           "pardi.parent.pre.appearance_sensitive_past_month",                       
+           "pardi.parent.pre.child_appeared_lack_enjoyment",                         
+           "pardi.parent.pre.child_forgotten_forgotten_make",                        
+           "pardi.parent.pre.stopped_eating_early_finished",                         
+           "pardi.parent.pre.affected_choking_pain_type",                            
+           "pardi.parent.pre.child_avoided_eating_situations",                       
+           "pardi.parent.pre.child_expressed_panic_physical",                        
+           "pardi.psychosocial_impairment_severity_numeric",                         
+           "pardi.sensory_sensitivities_numeric",                        
+           "pardi.lack_of_interest_numeric",                                              
+           "pardi.fear_of_aversive_consequences_numeric",
+           "rcads.social_phobia_numeric",                                            
+           "rcads.panic_disorder_numeric",                                           
+           "rcads.generalised_anxiety_numeric",                                      
+           "rcads.separation_anxiety_numeric",        
+           "currentview.cl.pre.1.anxious_away_from_caregivers_numeric",              
+           "currentview.cl.pre.2.anxious_in_social_situations_numeric",              
+           "currentview.cl.pre.3.anxious_generally_numeric",                         
+           "currentview.cl.pre.5.panics_numeric",                                    
+           "currentview.cl.pre.7.avoids_specific_things_numeric",                    
+           "currentview.cl.pre.6.avoids_going_out_numeric",   
+           "currentview.cl.pre.1.anxious_away_from_caregivers",              
+           "currentview.cl.pre.2.anxious_in_social_situations",              
+           "currentview.cl.pre.3.anxious_generally",                         
+           "currentview.cl.pre.5.panics",                                    
+           "currentview.cl.pre.7.avoids_specific_things",                    
+           "currentview.cl.pre.6.avoids_going_out",
+           "rcads.social_phobia_zscore",
+           "CV.social_phobia_zscore", 
+           "rcads.generalised_anxiety_zscore", 
+           "CV.generalised_anxiety_zscore", 
+           "rcads.separation_anxiety_zscore",
+           "CV.separation_anxiety_zscore",
+           "rcads.panic_disorder_zscore",
+           "CV.panic_disorder_zscore",
+           "CV.specific_phobia_zscore", 
+           "CV.agoraphobia_zscore", 
+           "social_phobia_zscore",                                                
+           "generalised_anxiety_zscore",                                            
+           "separation_anxiety_zscore",                                              
+           "panic_disorder_zscore", 
+           "rcads.generalised_anxiety_tscore", 
+           "rcads.panic_disorder_tscore", 
+           "rcads.social_phobia_tscore", 
+           "rcads.separation_anxiety_tscore", 
+           "RCADS.social_phobia_categorical_numeric",                                             
+           "RCADS.social_phobia_categorical",                                              
+           "RCADS.generalised_anxiety_categorical_numeric",                                              
+           "RCADS.generalised_anxiety_categorical",                                                      
+           "RCADS.panic_disorder_categorical_numeric",                                               
+           "RCADS.panic_disorder_categorical",                                                       
+           "RCADS.separation_anxiety_categorical_numeric",                                              
+           "RCADS.separation_anxiety_categorical"    
+           
+           )
+         )
+```
+
+Save clean dataset
+```{r save clean data as rds}
+saveRDS(arfid_data_clean, 
+        file = paste0("../data/arfid_data_clean", date, ".rds"))
+```
+
