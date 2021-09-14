@@ -1,0 +1,202 @@
+---
+title: "Descriptive statistics"
+author: "Rosie Watts"
+date: "07/07/2021"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+Descriptive statistics: we will use a range of descriptive statistics to examine the demographic characteristics of the dataset and patients who present at the ARFID outpatient clinic, MCCAED. Descriptive statistics will include sex distribution, age, anthropometrics, how many patients report nutritional deficiencies, psychosocial impairment, and how many require oral supplements or tube feeding. 
+
+
+#Set up R Markdown
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Clear Global Environment 
+```{r clear global environment}
+rm(list = ls(all.names = TRUE)) 
+```
+
+Set current date 
+```{r current date}
+date <- Sys.Date()
+```
+
+Install necessary packages
+```{r install packages}
+#install.packages("knitr")
+#install.packages("dplyr")
+#install.packages("summarytools")
+#install.packages("skimr")
+#install.packages("psych")
+#install.packages("gt")
+#install.packages("gtsummary)
+#install.packages("tidyverse")
+```
+
+Load necessary packages 
+```{r load packages}
+library(knitr)
+library(summarytools)
+library(skimr)
+library(psych)
+library(gt)
+library(gtsummary)
+library(tidyverse)
+```
+
+
+Read in data
++++CH: Remember to change to the most recent date when you are running all scripts before the final write up
+```{r read in raw_data}
+arfid_dat <- readRDS(file = "../data/arfid_data_clean2021-08-18.rds")
+```
+
+
+#Inspect Data: 
++++CH: I have deleted str(); because it duplicates the work
+```{r skim}
+arfid_dat %>% 
+  skim()
+```
+
+
+
+#Summary descriptive statistics
+
+ARFID diagnosis - sample size and inclusion criteria
+```{r ARFID diagnosis}
+arfid_dat %>% 
+  freq(arfid_diagnosis)
+```
+The sample of consists of 139 patients, 131 who have a clinical diagnosis of ARFID and 8 who have subthreshold ARFID.
+
+
+```{r age descriptives}
+arfid_dat %>% 
+  descr(child.parent.pre.age_yrs)
+```
+Mean age of patient's is 12.45 years with a standard deviation of 3.77.
+
+
+```{r sex distribution}
+arfid_dat %>% 
+  freq(child.parent.pre.biological_sex_of_your_child_at_birth_binary)
+```
+The sample comprises 63 males and 72 females.
+
+
+```{r anthropometric descriptives}
+arfid_dat %>%
+  select(pardi.parent.pre.what_is_your_childs_height_metres, 
+         pardi.parent.pre.what_is_your_childs_weight_kg, 
+         pardi.parent.pre.current_bmi_age_sds) %>% 
+  descr()
+
+```
+The sample has a mean BMI-for-age z-score of -1.06 with a standard deviation of 1.23
+
+
+Autism spectrum diagnosis
+```{r ASD diagnosis}
+arfid_dat %>% 
+  freq(ASD_diagnosis)
+```
+Sixty-eight of the patients have no autism spectrum disorder (ASD) diagnosis, 24 have a suspected ASD diagnosis, and 30 have confirmed ASD diagnosis.
+
+
+#Summary statistics table:
+https://cran.r-project.org/web/packages/gtsummary/vignettes/tbl_summary.html
+
+Remove age group, only need to report one age variable (continuous or grouped)
+
+Select variables to report summary statistics
+```{r vector of variables}
+summary <- arfid_dat %>% 
+  select(child.parent.pre.biological_sex_of_your_child_at_birth_binary,
+         child.parent.pre.age_yrs,
+         #age.parent.pre.please_choose_young_persons_age_group,
+         ASD_diagnosis,
+         pardi.parent.pre.current_bmi_age_sds,
+         pardi.parent.pre.pace_difficulty_gaining_difficulty_binary, 
+         pardi.parent.pre.health_professional_expected_told_binary,
+         pardi.parent.pre.child_eating_habits_led_binary,
+         pardi.parent.pre.health_professional_eating_habits_binary,
+         pardi.parent.pre.enteral_feeding_oral_supplement_binary,
+         pardi.parent.pre.college_day_home_work_binary, 
+         )
+```
+
+Label variables for table
+and select type of data 
+```{r tbl_summary}
+summary_table <- summary %>% 
+  tbl_summary(
+              label = list(
+                child.parent.pre.biological_sex_of_your_child_at_birth_binary ~ 
+                  "Patient's biological sex",
+                 child.parent.pre.age_yrs ~ 
+                  "Age in years",
+                 ASD_diagnosis ~ 
+                  "Comorbid autism spectrum diagnosis",
+                 pardi.parent.pre.current_bmi_age_sds ~ 
+                  "BMI-for-age z-score",
+                 pardi.parent.pre.pace_difficulty_gaining_difficulty_binary ~ 
+                  "A1: Difficulty maintaining weight", 
+                 pardi.parent.pre.health_professional_expected_told_binary ~ 
+                  "A1: Slow growth", 
+                 pardi.parent.pre.child_eating_habits_led_binary ~ 
+                  "A1: Weight loss", 
+                 pardi.parent.pre.health_professional_eating_habits_binary ~ 
+                  "A2 Nutritional deficiency", 
+                 pardi.parent.pre.enteral_feeding_oral_supplement_binary ~ 
+                  "A3: Enteral feeding or oral supplement", 
+                 pardi.parent.pre.college_day_home_work_binary ~ 
+                  "A4: Psychosocial impairment"),
+              
+              
+              type = list(
+                child.parent.pre.biological_sex_of_your_child_at_birth_binary ~ 
+                  "categorical",
+                 child.parent.pre.age_yrs ~ 
+                  "continuous2",
+                 ASD_diagnosis ~
+                  "categorical",
+                 pardi.parent.pre.current_bmi_age_sds ~ 
+                  "continuous2",
+                 pardi.parent.pre.pace_difficulty_gaining_difficulty_binary ~ 
+                  "categorical", 
+                 pardi.parent.pre.health_professional_expected_told_binary ~ 
+                  "categorical", 
+                 pardi.parent.pre.child_eating_habits_led_binary ~ 
+                  "categorical", 
+                 pardi.parent.pre.health_professional_eating_habits_binary ~ 
+                  "categorical", 
+                 pardi.parent.pre.enteral_feeding_oral_supplement_binary ~ 
+                  "categorical", 
+                 pardi.parent.pre.college_day_home_work_binary ~ 
+                  "categorical"), 
+              
+              statistic = list(all_categorical() ~ "{n} ({p}%)",
+                               all_continuous2() ~ c("{mean} ({SD})",
+                                                      "{median} ({p25}, {p75})",
+                                                      "{min}, {max}")), 
+              
+              missing = "no"
+    ) 
+```
+
+
+```{r modify labls and run table}
+summary_table %>% 
+  modify_caption("**Table 1. Patient Characteristics**") %>%  
+  modify_footnote(all_stat_cols() ~ "n(%) or Mean(SD)") %>% 
+  bold_labels() %>% 
+  add_n() %>% 
+  modify_header(label ~ "**Variable**") 
+```
+
