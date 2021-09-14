@@ -1,0 +1,716 @@
+---
+title: "Correlation Matrix"
+author: "Rosie Watts"
+date: "18/08/2021"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+Research question 1: Examine how ARFID symptoms correlate with one another. 
+Research question 2: Examine how anxiety correlate with symptoms of ARFID. 
+
+To answer the first two research questions we will use a heterogeneous correlation matrix to test the correlations of both continuous and categorical data.
+
+# Set up R Markdown
+```{r setup, include=FALSE, out.width='100%'}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Clear Global Environment 
+```{r clear global environment}
+rm(list = ls(all.names = TRUE)) 
+```
+
+Set current date 
+```{r current date}
+date <- Sys.Date()
+```
+
+Install necessary packages
+```{r install packages, eval=FALSE, include=FALSE}
+#install.packages("knitr")
+#install.packages("summarytools")
+#install.packages("skimr")
+#install.packages("polycor")
+#install.packages("corrplot")
+#install.packages("corrr")
+#install.packages("broom")
+#install.packages("poolr")
+#install.packages("magrittr")
+#install.packages("tidyverse")
+```
+
+Load packages
+```{r load packages}
+library(knitr)
+library(summarytools)
+library(skimr)
+library(polycor)
+library(corrplot)
+#library(corrr)
+library(rstatix)
+library(broom)
+library(poolr)
+#library(magrittr)
+library(xlsx)
+library(tidyverse)
+```
+
+Read in clean data
+```{r read in clean data}
+arfid_dat <- readRDS(file = "../Data/arfid_data_clean2021-08-18.rds")
+```
+
+#Inspect the data
+
+```{r skim}
+arfid_dat %>% 
+  skim()
+```
+
+
+
+#Hetcor matrix function
+Select variables and run hetcor using pairwise complete observations
+And print arfid.het.cor =
+1. Correlation coefficients and type of correlations 
+2. Standard errors and number of pairwise complete observations
+3. p-values
+```{r select variables and run hetcor}
+arfid.het.cor <- arfid_dat %>% 
+  select(
+    #BMI for age z-score (continuous)
+    "pardi.parent.pre.current_bmi_age_sds",
+    
+    #Nutritional deficiencies (binary)
+    "pardi.parent.pre.health_professional_eating_habits_binary",       
+    
+    #ARFID symptoms (factor)
+    "pardi.parent.pre.interactions_people_eating_difficulties", 
+    #interactions with others
+    "pardi.parent.pre.difficult_social_situations_social",      
+    #social situations
+    "pardi.parent.pre.taste_variation_sensitive_past",          
+    #sensory sensitivity - taste
+    "pardi.parent.pre.consistency_sensitive_past_month",        
+    #sensory sensitivity - texture
+    "pardi.parent.pre.appearance_sensitive_past_month",         
+    #sensory sensitivity - appearance 
+    "pardi.parent.pre.child_forgotten_forgotten_make",          
+    #forgotten to eat
+    "pardi.parent.pre.child_appeared_lack_enjoyment",    
+    #lacked enjoyment in food
+    "pardi.parent.pre.stopped_eating_early_finished",     
+    #full/stopped eating early
+    "pardi.parent.pre.affected_choking_pain_type",     
+    #afraid something bad might happen
+    "pardi.parent.pre.child_avoided_eating_situations",         
+    #avoided eating due to such worries
+    "pardi.parent.pre.child_expressed_panic_physical",       
+    #physical feelings of panic and anxiety
+    
+    #Anxety disorder z-scores (continuous)
+    "social_phobia_zscore",                                                
+    "generalised_anxiety_zscore",                                            
+    "separation_anxiety_zscore",                                              
+    "panic_disorder_zscore", 
+    "CV.specific_phobia_zscore", 
+    "CV.agoraphobia_zscore" 
+    
+    ) %>% 
+  
+  as.data.frame() %>%
+  
+  hetcor(use = "pairwise.complete.obs"
+         #ML = T 
+  )
+
+arfid.het.cor
+```
+
+
+Save as a correlation matrix
+```{r correlation as matrix}
+arfid.het.cor.matrix <- as.matrix(arfid.het.cor)
+```
+
+Save p-values from the correlation matrix as an object 
+```{r p values matrix}
+p.values.matrix <- as.matrix(arfid.het.cor$tests, round(4))
+```
+
+
+##Indpendent traits
+Calculate the number of independent traits within the correlation matrix to adjust for multiple testing: 
+
+https://www.rdocumentation.org/packages/poolr/versions/1.0-0/topics/meff 
+Methods: "nyholt", "liji", "gao", or "galwey"
+
+Independent tests using 'galwey' methods = 13 
+Bonferroni adjustment = 0.05/13 = 0.004
+
+```{r independent traits}
+meff(arfid.het.cor.matrix, 
+     method = "galwey")
+```
+
+#Plot the Heterogeneous correlation matrix
+Save column and row names for correlation matrix
+```{r col and row names}
+colnames(arfid.het.cor.matrix) <- 
+  c(
+    "BMI for age z-score",
+    "nutritional deficiency", 
+    
+    
+    "difficulty: interactions with others",
+    "difficulty: social situations",
+    "sensory sensitivity: taste",
+    "sensory sensitivity: texture",
+    "sensory sensitivity: appearance",
+    "forgotten to eat",
+    "lacked enjoyment in food", 
+    "stopped eating early", 
+    "afraid something bad might happen",
+    "avoided eating due to such worries", 
+    "physical feelings of panic and anxiety",
+    
+    #"ASD",
+    
+    "social anxiety z-score", 
+    "generalised anxiety z-score", 
+    "separation anxiety z-score", 
+    "panic disorder z-score", 
+    "specific phobia z-score", 
+    "agoraphobia z-score"
+    )
+
+
+rownames(arfid.het.cor.matrix) <- 
+  c(
+    "BMI for age z-score",
+    "nutritional deficiency", 
+   
+    
+    "difficulty: interactions with others",
+    "difficulty: social situations",
+    "sensory sensitivity: taste",
+    "sensory sensitivity: texture",
+    "sensory sensitivity: appearance",
+    "forgotten to eat",
+    "lacked enjoyment in food", 
+    "stopped eating early", 
+    "afraid something bad might happen",
+    "avoided eating due to such worries", 
+    "physical feelings of panic and anxiety",
+    
+    #"ASD",
+    
+    
+    "social anxiety z-score", 
+    "generalised anxiety z-score", 
+    "separation anxiety z-score", 
+    "panic disorder z-score", 
+    "specific phobia z-score", 
+    "agoraphobia z-score"
+    )
+```
+
+Use corrplot to plot matrix
+(Hash out saving the plot for now)
+```{r het corrplot}
+#png('arfid.het.corrplot.png', res = 300, width=2800, height=2800)
+
+arfid.het.cor.matrix %>%
+  corrplot(method = "color", 
+           type = "lower",             #shows lower half of correlation matrix
+           diag = TRUE,                #remove diagonal correlation
+           #order = "hclust",          #order of vars: original, AOE, hclust
+           #hclust.method = 
+           #addrect = 4,               #no. of rectangles drawn - hclust
+           addCoef.col = "black",      #add correlation coefficients
+           addgrid.col = "white",      #add colour of grid lines
+           number.cex = .55,           #size of correlation coefficients
+           number.font = 1,            #font of correlation coefficients
+           tl.col = "black",           #black labels
+           tl.srt = 45,                #rotate labels
+           tl.cex = .75,               #font size of labels
+           cl.cex = 0.75,
+           
+           #Combine with p-values 
+           p.mat = p.values.matrix,      #matrix with p-levels 
+           sig.level = 0.004,          #adjusted significance level (edit)
+           insig = "blank", 
+          
+          #Reverse colour scheme
+           col=colorRampPalette(c("dodgerblue4",
+                                  "white",
+                                  "firebrick4"))(200))
+           
+#dev.off()
+```
+
+#Create a table of the correlation matrix
+
+```{r correlation matrix data frame}
+Correlation_Matrix_data_frame_table <-
+as.data.frame(as.table(arfid.het.cor.matrix))
+
+Correlation_Matrix_data_frame_table <- 
+  Correlation_Matrix_data_frame_table %>% 
+  rename("Variable 1" = "Var1", 
+         "Variable 2" = "Var2", 
+         "r" = "Freq") 
+
+Correlation_Matrix_data_frame_table
+```
+
+
+
+#Number of pairwise complete obs in each correlation 
+Include this as an appendix
+```{r number of pairwise complete obs in each correlation}
+ARFID_correlation_matrix_number = as.data.frame(
+  arfid.het.cor$n)
+```
+
+Rename variable names 
+```{r rename column names}
+ARFID_correlation_matrix_number <- ARFID_correlation_matrix_number %>% 
+  rename(
+    "BMI for age z-score" = "V1",
+    "nutritional deficiency" = "V2", 
+  
+    "difficulty: interactions with others" = "V3",
+    "difficulty: social situations" = "V4",
+    "sensory sensitivity: taste" = "V5",
+    "sensory sensitivity: texture" = "V6",
+    "sensory sensitivity: appearance" = "V7",
+    "forgotten to eat" = "V8",
+    "lacked enjoyment in food" = "V9", 
+    "stopped eating early" = "V10", 
+    "afraid something bad might happen" = "V11",
+    "avoided eating due to such worries" = "V12", 
+    "physical feelings of panic and anxiety" = "V13", 
+    
+    "social anxiety" = "V14", 
+    "generalised anxiety" = "V15", 
+    "separation anxiety" = "V16", 
+    "panic disorder" = "V17", 
+    "specific phobia" = "V18", 
+    "agoraphobia" = "V19"
+  )
+```
+
+Mutate column with row names
+```{r new column with row names}
+ARFID_correlation_matrix_number <- ARFID_correlation_matrix_number %>% 
+  mutate(Rows = 
+           rownames(arfid.het.cor.matrix))
+
+ARFID_correlation_matrix_number
+```
+
+Write as an excel to format table and attach as an appendix
+```{r save as excel}
+write.xlsx(
+  ARFID_correlation_matrix_number,
+  file = "ARFID_correlation_matrix_number.xlsx",
+  sheetName = "Sheet2",
+  col.names = TRUE,
+  row.names = TRUE,
+  append = FALSE,
+  showNA = TRUE,
+  password = NULL
+)
+```
+
+
+#Visualise the relationship of variables
+Check some of the correlations from the heterogeneous correlation matrix by visualising the relationship between the variables 
+
+##ARFID drivers
+
+###Sensory sensitivities 
+taste and texture 
+r = 0.81, p = 0.07
+```{r visualise: sensory sensitivity to taste and texture}
+sensory_1 <- arfid_dat %>% 
+  ggplot(aes(x = pardi.parent.pre.taste_variation_sensitive_past_numeric, 
+             y = pardi.parent.pre.consistency_sensitive_past_month_numeric)) + 
+  geom_point() + 
+  geom_jitter(position = 
+                position_jitter(height = 0.2, width = 0.2)) + 
+  xlab("Sensory sensitivty: taste") + 
+  ylab("Sensory sensitivity: texture") + 
+  theme_minimal()
+
+sensory_1
+```
+
+taste and appearance 
+r = 0.65  , p = 0.14
+```{r visualise: sensory sensitivity to taste and appearance}
+sensory_2 <- arfid_dat %>% 
+  ggplot(aes(x = pardi.parent.pre.taste_variation_sensitive_past_numeric, 
+             y = pardi.parent.pre.appearance_sensitive_past_month_numeric)) + 
+  geom_point() + 
+  geom_jitter(position = 
+                position_jitter(height = 0.2, width = 0.2)) + 
+  xlab("Sensory sensitivty: taste") + 
+  ylab("Sensory sensitivity: appearance") + 
+  theme_minimal()
+
+sensory_2
+```
+
+texture and appearance 
+r = 0.65  , p = 0.007
+```{r visualise: sensory sensitivity to texture and appearance}
+sensory_3 <- arfid_dat %>% 
+  ggplot(aes(x = pardi.parent.pre.consistency_sensitive_past_month_numeric, 
+             y = pardi.parent.pre.appearance_sensitive_past_month_numeric)) + 
+  geom_point() + 
+  geom_jitter(position = 
+                position_jitter(height = 0.2, width = 0.2)) + 
+  xlab("Sensory sensitivty: texture") + 
+  ylab("Sensory sensitivity: appearance") + 
+  theme_minimal()
+
+sensory_3
+```
+
+###Lack of interest
+forgotten to eat and lack enjoyment 
+r = 0.66  , p = 0.89
+```{r visualise: forgotten to eat and lack enjoyment }
+interest_1 <- arfid_dat %>% 
+  ggplot(aes(x = pardi.parent.pre.child_forgotten_forgotten_make_numeric, 
+             y = pardi.parent.pre.child_appeared_lack_enjoyment_numeric)) + 
+  geom_point() + 
+  geom_jitter(position = 
+                position_jitter(height = 0.2, width = 0.2)) + 
+  xlab("Lack of interest: forgotten to eat") + 
+  ylab("Lack of interest: lacked enjoyment") + 
+  theme_minimal()
+
+interest_1
+```
+
+forgotten to eat and stopped eating early
+r = 0.58  , p = 0.30
+```{r visualise: forgotten to eat and stopped eating early}
+interest_2 <- arfid_dat %>% 
+  ggplot(aes(x = pardi.parent.pre.child_forgotten_forgotten_make_numeric, 
+             y = pardi.parent.pre.stopped_eating_early_finished_numeric)) + 
+  geom_point() + 
+  geom_jitter(position = 
+                position_jitter(height = 0.2, width = 0.2)) + 
+  xlab("Lack of interest: forgotten to eat") + 
+  ylab("Lack of interest: stopped eating early") + 
+  theme_minimal()
+
+interest_2
+```
+
+Stopped eating early and lack enjoyment 
+r = 0.57  , p = 0.33
+```{r visualise: lack enjoyment and stopped eating early}
+interest_3 <- arfid_dat %>% 
+  ggplot(aes(x = pardi.parent.pre.child_appeared_lack_enjoyment_numeric, 
+             y = pardi.parent.pre.stopped_eating_early_finished_numeric)) + 
+  geom_point() + 
+  geom_jitter(position = 
+                position_jitter(height = 0.2, width = 0.2)) + 
+  xlab("Lack of interest: lacked enjoyment") + 
+  ylab("Lack of interest: stopped eating early") + 
+  theme_minimal()
+
+interest_3
+```
+
+###Fear of aversive consequences
+Afraid something bad might happen and avoided eating due to worries
+r = 0.88  , p = 0.00004
+```{r visualise: afraid and avoided}
+fear_1 <- arfid_dat %>% 
+  ggplot(aes(x = pardi.parent.pre.affected_choking_pain_type_numeric, 
+             y = pardi.parent.pre.child_avoided_eating_situations_numeric)) + 
+  geom_point() + 
+  geom_jitter(position = 
+                position_jitter(height = 0.2, width = 0.2)) + 
+  xlab("Fear of aversive consequences: afraid something bad might happen") + 
+  ylab("Fear of aversive consequences: avoided eating due to worries") + 
+  theme_minimal()
+
+fear_1
+```
+
+Afraid something bad might happen and physical feelings of panic and anxiety
+r = 0.79  , p = 0.04 
+```{r visualise: afraid and physical feelings of panic and anxiety}
+fear_2 <- arfid_dat %>% 
+  ggplot(aes(x = pardi.parent.pre.affected_choking_pain_type_numeric, 
+             y = pardi.parent.pre.child_expressed_panic_physical_numeric)) + 
+  geom_point() + 
+  geom_jitter(position = 
+                position_jitter(height = 0.2, width = 0.2)) + 
+  xlab("Fear of aversive consequences: afraid something bad might happen") + 
+  ylab("Fear of aversive consequences: physical feelings of panic and anxiety") + 
+  theme_minimal()
+
+fear_2
+```
+
+Avoided eating due to worries and physical feelings of panic and anxiety
+r = 0.75  , p = 0.04
+```{r visualise: avoided and physical feelings of panic and anxiety}
+fear_3 <- arfid_dat %>% 
+  ggplot(aes(x = pardi.parent.pre.child_avoided_eating_situations_numeric, 
+             y = pardi.parent.pre.child_expressed_panic_physical_numeric)) + 
+  geom_point() + 
+  geom_jitter(position = 
+                position_jitter(height = 0.2, width = 0.2)) + 
+  xlab("Fear of aversive consequences: avoided eating due to worries") + 
+  ylab("Fear of aversive consequences: physical feelings of panic and anxiety") + 
+  theme_minimal()
+
+fear_3
+```
+
+####Format and save these plots for appendices
+Could discuss the relationship between the three items in each ARFID driver in the discussion and attach these plots as appendices. 
+Format with cowplot:
+```{r Sensory sensitivities cowplot}
+sensory_correlations <- 
+  cowplot::plot_grid(sensory_1, sensory_2, sensory_3,
+                     labels = c("A", 
+                                "B", 
+                                "C"), 
+                     label_size = 12, 
+                     scale = 0.9,
+                     nrow = 1) 
+
+sensory_correlations
+```
+
+```{r ggsave sensory}
+ggsave(
+  filename = paste0("sensory_correlations", date, ".pdf"), 
+  path = "../plots/",
+  plot = sensory_correlations,
+  device = "pdf",
+  scale = 1,
+  width = 14,
+  height = 5,
+  dpi = 300,
+  limitsize = FALSE,
+  bg = NULL
+  )
+```
+
+```{r lack of interest cowplot}
+interest_correlations <- 
+  cowplot::plot_grid(interest_1, interest_2, interest_3,
+                     labels = c("A", 
+                                "B", 
+                                "C"), 
+                     label_size = 12, 
+                     scale = 0.9,
+                     nrow = 1) 
+
+interest_correlations
+```
+
+```{r ggsave interest}
+ggsave(
+  filename = paste0("interest_correlations", date, ".pdf"), 
+  path = "../plots/",
+  plot = interest_correlations,
+  device = "pdf",
+  scale = 1,
+  width = 14,
+  height = 5,
+  dpi = 300,
+  limitsize = FALSE,
+  bg = NULL
+  )
+```
+
+```{r fear cowplot}
+fear_correlations <- 
+  cowplot::plot_grid(fear_1, fear_2, fear_3,
+                     labels = c("A", 
+                                "B", 
+                                "C"), 
+                     label_size = 12, 
+                     scale = 0.9,
+                     nrow = 1) 
+
+fear_correlations
+```
+
+```{r ggsave fear}
+ggsave(
+  filename = paste0("fear_correlations", date, ".pdf"), 
+  path = "../plots/",
+  plot = fear_correlations,
+  device = "pdf",
+  scale = 1,
+  width = 15,
+  height = 6,
+  dpi = 300,
+  limitsize = FALSE,
+  bg = NULL
+  )
+```
+
+
+##Anxiety and ARFID drivers 
+- pick a couple of correlations to visually inspect
+
+Generalised anxiety and sensory sensitivity to appearance
+r = 0.31, p = 5.63E-08
+```{r visualise: Generalised anxiety and sensory sensitivity to appearance}
+arfid_dat %>% 
+  ggplot(aes(x = pardi.parent.pre.appearance_sensitive_past_month_numeric, 
+             y = generalised_anxiety_zscore)) + 
+  geom_point() + 
+  geom_jitter(position = 
+                position_jitter(height = 0.2, width = 0.2)) + 
+  xlab("Sensory sensitivities: appearance") + 
+  ylab("Generalised anxiety z-score")
+```
+
+Separation anxiety and stopped eating early
+r = 0.13, p = 1.21E-05
+```{r visualise: separation anxiety and stopped eating early}
+arfid_dat %>% 
+  ggplot(aes(x = pardi.parent.pre.stopped_eating_early_finished_numeric, 
+             y = separation_anxiety_zscore)) + 
+  geom_point() + 
+  geom_jitter(position = 
+                position_jitter(height = 0.2, width = 0.2)) + 
+  xlab("Lack of interest: stopped eating early") + 
+  ylab("Separation anxiety z-score")
+```
+
+panic disorder and physical feelings of panic and anxiety 
+r = 0.43, p = 4.12E-13
+```{r visualise: Panic disorder and fear of aversive consequences}
+arfid_dat %>% 
+  ggplot(aes(x = pardi.parent.pre.child_expressed_panic_physical_numeric, 
+             y = panic_disorder_zscore)) + 
+  geom_point() + 
+  geom_jitter(position = 
+                position_jitter(height = 0.2, width = 0.2)) + 
+  xlab("Fear of aversive consequences: physical feelings of panic and anxiety") + 
+  ylab("Panic disorder z-score")
+```
+
+##ARFID drivers and BMI-for-age z-scores
+- pick a couple of correlations to visually inspect
+
+BMI and sensory sensitivity to taste
+r = 0.40, p = 0.0004
+```{r visualise: BMI and sensory sensitivity to taste}
+arfid_dat %>% 
+  ggplot(aes(x = pardi.parent.pre.taste_variation_sensitive_past_numeric, 
+             y = pardi.parent.pre.current_bmi_age_sds)) + 
+  geom_point() + 
+  geom_jitter(position = 
+                position_jitter(height = 0.2, width = 0.2)) + 
+  xlab("Sensory sensitivities: taste") + 
+  ylab("BMI-for-age z-scores")
+```
+
+
+
+#Check the individual correlations between items 
+Calculuate individual correlation between a few variables to check these against the hetcor matrix
+
+##biserial 
+polserial() from the polychor package with 
+x = continuous 
+y = factor with two levels (binary)
+```{r biserial correlations}
+polyserial(x = arfid_dat$pardi.parent.pre.current_bmi_age_sds, 
+           y = arfid_dat$pardi.parent.pre.health_professional_eating_habits_binary, 
+           std.err = TRUE)
+```
+This correlation coefficient and p-value corresponds with the hetcor matrix 
+
+
+##Polychoric 
+binary factor and categorical factor 
+```{r polychoric with binary}
+polychor(x = arfid_dat$pardi.parent.pre.taste_variation_sensitive_past,
+         y = arfid_dat$pardi.parent.pre.health_professional_eating_habits_binary,
+         std.err = TRUE) 
+```
+This correlation coefficient and p-value corresponds with the hetcor matrix 
+
+
+##polychoric 
+categorical and categorical (ARFID symptoms)
+```{r polychoric correlations}
+
+#polycor package
+
+polychor(x = arfid_dat$pardi.parent.pre.consistency_sensitive_past_month, 
+        y = arfid_dat$pardi.parent.pre.taste_variation_sensitive_past, 
+         std.err = TRUE) 
+
+
+polychor(x = arfid_dat$pardi.parent.pre.appearance_sensitive_past_month, 
+        y = arfid_dat$pardi.parent.pre.child_appeared_lack_enjoyment, 
+         std.err = TRUE) 
+
+
+polychor(x = arfid_dat$pardi.parent.pre.affected_choking_pain_type,
+         y = arfid_dat$pardi.parent.pre.child_avoided_eating_situations, 
+         std.err = TRUE)
+
+
+polychor(x = arfid_dat$pardi.parent.pre.consistency_sensitive_past_month,
+         y = arfid_dat$pardi.parent.pre.child_forgotten_forgotten_make, 
+         std.err = TRUE)
+
+
+polychor(x = arfid_dat$pardi.parent.pre.taste_variation_sensitive_past,
+         y = arfid_dat$pardi.parent.pre.child_appeared_lack_enjoyment, 
+         std.err = TRUE)
+
+```
+These correlation coefficients and p-values are the same as the one created by hetcor()
+
+
+##Polyserial 
+categorical and continous
+```{r polyserial correlations}
+
+#polycor package 
+
+polyserial(x = arfid_dat$pardi.parent.pre.current_bmi_age_sds,
+           y = arfid_dat$pardi.parent.pre.consistency_sensitive_past_month, 
+           std.err = TRUE) 
+
+polyserial(x = arfid_dat$generalised_anxiety_zscore,
+           y = arfid_dat$pardi.parent.pre.appearance_sensitive_past_month_numeric, 
+           std.err = TRUE) 
+
+```
+These correlation coefficients nd p-values are the same as the one created by hetcor()
+
+
+continuous
+```{r pearson correlation}
+arfid_dat %>% 
+  select(generalised_anxiety_zscore,
+         panic_disorder_zscore) %>% 
+  cor(use = "pairwise.complete.obs")
+```
+This correlation coefficients is the same as the one created by hetcor()
